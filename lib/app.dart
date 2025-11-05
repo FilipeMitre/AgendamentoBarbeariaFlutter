@@ -19,7 +19,6 @@ class App extends StatelessWidget {
       titleLarge: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
       bodyMedium: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.textPrimary),
       labelLarge: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
-      button: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.onPrimary),
     );
 
     return MultiProvider(
