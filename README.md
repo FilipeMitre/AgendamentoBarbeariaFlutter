@@ -1,6 +1,6 @@
-# goatbarber
+# AgendamentoBarbeariaFlutter - GoatBarber
 
-A new Flutter project.
+Código referente ao sistema de agendamento em flutter de uma barbearia
 
 ## Getting Started
 
