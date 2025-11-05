@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_colors.dart';
 import '../widgets/custom_widgets.dart';
 import '../utils/validators.dart';
@@ -309,6 +310,53 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ],
+                ),
+                
+                const SizedBox(height: 20),
+                
+                // Botão Debug - Mostrar Usuários
+                TextButton(
+                  onPressed: () async {
+                    final prefs = await SharedPreferences.getInstance();
+                    final keys = prefs.getKeys();
+                    final users = <String>[];
+                    
+                    for (String key in keys) {
+                      if (key.contains('_email')) {
+                        final userId = key.split('_')[1];
+                        final email = prefs.getString(key) ?? '';
+                        final name = prefs.getString('user_${userId}_name') ?? '';
+                        final password = prefs.getString('user_${userId}_password') ?? '';
+                        users.add('$name ($email) - Senha: $password');
+                      }
+                    }
+                    
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text('Usuários Cadastrados'),
+                        content: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: users.isEmpty 
+                                ? [Text('Nenhum usuário encontrado')]
+                                : users.map((user) => Text(user, style: TextStyle(fontSize: 12))).toList(),
+                          ),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text('Fechar'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  child: Text(
+                    'Ver usuários cadastrados (DEBUG)',
+                    style: TextStyle(color: Colors.blue, fontSize: 12),
+                  ),
                 ),
                 
                 const SizedBox(height: 40),

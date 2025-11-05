@@ -12,6 +12,7 @@ class CarteiraScreen extends StatefulWidget {
   State<CarteiraScreen> createState() => _CarteiraScreenState();
 }
 
+class _CarteiraScreenState extends State<CarteiraScreen> {
   double saldoDisponivel = 0.00;
   String userName = 'Usuário';
   int? userId;

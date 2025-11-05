@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const mysql = require('mysql2/promise');
 
 const app = express();
 const PORT = 3001;
@@ -9,85 +8,105 @@ const PORT = 3001;
 app.use(cors());
 app.use(express.json());
 
-// Criar/conectar ao banco SQLite
-const dbPath = path.join(__dirname, 'database.db');
-const db = new sqlite3.Database(dbPath);
+// Configuração do MySQL
+const dbConfig = {
+  host: 'localhost',
+  port: 3306,
+  user: 'root',
+  password: '',
+  database: 'app_barbearia'
+};
 
-// Criar tabelas se não existirem
-db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS usuarios (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nome TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    cpf TEXT,
-    senha TEXT,
-    papel TEXT DEFAULT 'cliente',
-    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-
-  db.run(`CREATE TABLE IF NOT EXISTS carteiras (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    id_cliente INTEGER NOT NULL,
-    saldo DECIMAL(10,2) DEFAULT 0.00,
-    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (id_cliente) REFERENCES usuarios(id)
-  )`);
-
-  db.run(`CREATE TABLE IF NOT EXISTS transacoes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    id_carteira INTEGER NOT NULL,
-    valor DECIMAL(10,2) NOT NULL,
-    tipo TEXT NOT NULL,
-    id_agendamento INTEGER,
-    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (id_carteira) REFERENCES carteiras(id)
-  )`);
-});
+// Função para conectar ao MySQL
+async function connectDB() {
+  try {
+    const connection = await mysql.createConnection(dbConfig);
+    console.log('Conectado ao MySQL: app_barbearia');
+    return connection;
+  } catch (error) {
+    console.error('Erro ao conectar ao MySQL:', error);
+    throw error;
+  }
+}
 
 // Endpoint para executar queries
-app.post('/api/query', (req, res) => {
+app.post('/api/query', async (req, res) => {
   const { sql, params = [] } = req.body;
   
   console.log('Query recebida:', sql);
   console.log('Parâmetros:', params);
 
-  // Verificar se é SELECT ou INSERT/UPDATE/DELETE
-  if (sql.trim().toUpperCase().startsWith('SELECT')) {
-    db.all(sql, params, (err, rows) => {
-      if (err) {
-        console.error('Erro na query SELECT:', err);
-        res.status(500).json({ error: err.message });
-      } else {
-        console.log('Resultado SELECT:', rows);
-        res.json({ results: rows });
-      }
-    });
-  } else {
-    db.run(sql, params, function(err) {
-      if (err) {
-        console.error('Erro na query:', err);
-        res.status(500).json({ error: err.message });
-      } else {
-        console.log('Query executada com sucesso. LastID:', this.lastID, 'Changes:', this.changes);
-        res.json({ 
-          results: [{ 
-            lastID: this.lastID, 
-            changes: this.changes,
-            success: true 
-          }] 
-        });
-      }
-    });
+  let connection;
+  try {
+    connection = await connectDB();
+    
+    // Verificar se é SELECT ou INSERT/UPDATE/DELETE
+    if (sql.trim().toUpperCase().startsWith('SELECT')) {
+      const [rows] = await connection.execute(sql, params);
+      console.log('Resultado SELECT:', rows);
+      res.json({ results: rows });
+    } else {
+      const [result] = await connection.execute(sql, params);
+      console.log('Query executada com sucesso. InsertId:', result.insertId, 'AffectedRows:', result.affectedRows);
+      res.json({ 
+        results: [{ 
+          insertId: result.insertId, 
+          affectedRows: result.affectedRows,
+          success: true 
+        }] 
+      });
+    }
+  } catch (error) {
+    console.error('Erro na query MySQL:', error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    if (connection) {
+      await connection.end();
+    }
   }
 });
 
 // Endpoint de teste
-app.get('/api/test', (req, res) => {
-  res.json({ message: 'API funcionando!', timestamp: new Date().toISOString() });
+app.get('/api/test', async (req, res) => {
+  let connection;
+  try {
+    connection = await connectDB();
+    const [rows] = await connection.execute('SELECT COUNT(*) as total FROM usuarios');
+    res.json({ 
+      message: 'API MySQL funcionando!', 
+      timestamp: new Date().toISOString(),
+      usuarios: rows[0].total
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: 'Erro na conexão MySQL', 
+      error: error.message 
+    });
+  } finally {
+    if (connection) {
+      await connection.end();
+    }
+  }
+});
+
+// Endpoint para listar usuários (debug)
+app.get('/api/users', async (req, res) => {
+  let connection;
+  try {
+    connection = await connectDB();
+    const [rows] = await connection.execute('SELECT id, nome, email, criado_em FROM usuarios ORDER BY id DESC LIMIT 10');
+    res.json({ users: rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  } finally {
+    if (connection) {
+      await connection.end();
+    }
+  }
 });
 
 app.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
   console.log('Acesse http://localhost:3001/api/test para testar');
-  console.log('Banco de dados SQLite criado em:', dbPath);
+  console.log('Usando MySQL: app_barbearia');
 });

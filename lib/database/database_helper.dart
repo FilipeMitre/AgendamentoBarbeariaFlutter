@@ -7,12 +7,7 @@ class DatabaseHelper {
 
   DatabaseHelper._init();
 
-  // Simula uma conexão para manter compatibilidade
-  Future<DatabaseHelper> get database async {
-    return this;
-  }
-
-  // Método genérico para executar queries via API
+  // Método para executar queries via API
   Future<List<Map<String, dynamic>>> query(String sql, [List<dynamic>? params]) async {
     try {
       final response = await http.post(
@@ -25,15 +20,36 @@ class DatabaseHelper {
         final data = jsonDecode(response.body);
         return List<Map<String, dynamic>>.from(data['results'] ?? []);
       } else {
-        throw Exception('Erro na consulta: ${response.statusCode}');
+        throw Exception('Erro na API: ${response.statusCode}');
       }
     } catch (e) {
-      print('Erro na query: $e');
+      print('Erro na query via API: $e');
       return [];
     }
   }
 
-  Future<void> close() async {
-    // Não há conexão para fechar
+  // Método para queries que retornam insertId/affectedRows
+  Future<Map<String, dynamic>> executeQuery(String sql, [List<dynamic>? params]) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/query'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'sql': sql, 'params': params ?? []}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final results = data['results'] as List;
+        if (results.isNotEmpty) {
+          return Map<String, dynamic>.from(results.first);
+        }
+        return {};
+      } else {
+        throw Exception('Erro na API: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Erro na query via API: $e');
+      rethrow;
+    }
   }
 }

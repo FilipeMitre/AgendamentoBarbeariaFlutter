@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_colors.dart';
 import '../widgets/custom_widgets.dart';
 import '../utils/validators.dart';
@@ -208,6 +209,26 @@ class _CadastroScreenState extends State<CadastroScreen> {
                   ),
                 ),
                 
+                const SizedBox(height: 16),
+                
+                // Botão Debug - Limpar Dados
+                TextButton(
+                  onPressed: () async {
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.clear();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Dados limpos! Agora você pode cadastrar.'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  },
+                  child: Text(
+                    'Limpar dados (DEBUG)',
+                    style: TextStyle(color: Colors.red, fontSize: 12),
+                  ),
+                ),
+                
                 const SizedBox(height: 32),
                 
                 // Divider "Ou continue com"
@@ -306,9 +327,17 @@ class _CadastroScreenState extends State<CadastroScreen> {
       }
     } catch (e) {
       print('Erro no cadastro: $e');
+      String errorMessage = 'Erro ao realizar cadastro. Tente novamente.';
+      
+      if (e.toString().contains('EMAIL_EXISTS')) {
+        errorMessage = 'Este email já está cadastrado. Use outro email.';
+      } else if (e.toString().contains('Duplicate entry')) {
+        errorMessage = 'Email ou CPF já cadastrado. Verifique os dados.';
+      }
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Erro ao realizar cadastro. Email já existe ou tente novamente.'),
+          content: Text(errorMessage),
           backgroundColor: AppColors.error,
         ),
       );

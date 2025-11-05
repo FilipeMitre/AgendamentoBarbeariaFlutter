@@ -38,6 +38,7 @@ dependencies:
   # HTTP e Armazenamento
   http: ^1.1.0
   shared_preferences: ^2.2.2
+  mysql1: ^0.20.0
 
 dev_dependencies:
   flutter_test:

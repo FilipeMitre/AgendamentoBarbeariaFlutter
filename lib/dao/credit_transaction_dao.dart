@@ -6,169 +6,83 @@ class CreditTransactionDao {
 
   // Criar transação
   Future<int> create(CreditTransactionModel transaction) async {
-    final db = await dbHelper.database;
-    // Primeiro buscar a carteira do usuário
-    final carteiraResult = await db.query('SELECT id FROM carteiras WHERE id_cliente = ?', [transaction.userId]);
-    if (carteiraResult.isEmpty) return 0;
-    
-    final carteiraId = carteiraResult.first['id'];
-    final result = await db.query(
-      'INSERT INTO transacoes (id_carteira, valor, tipo, id_agendamento) VALUES (?, ?, ?, ?)',
-      [carteiraId, transaction.amount, transaction.type, null]
-    );
-    return result.isNotEmpty ? 1 : 0;
+    try {
+      // Primeiro, buscar ou criar carteira do usuário
+      final walletResult = await dbHelper.query('SELECT id FROM carteiras WHERE id_cliente = ?', [transaction.userId]);
+      int walletId;
+      
+      if (walletResult.isEmpty) {
+        // Criar carteira se não existir
+        final createWallet = await dbHelper.executeQuery(
+          'INSERT INTO carteiras (id_cliente, saldo) VALUES (?, ?)',
+          [transaction.userId, 0.0]
+        );
+        walletId = createWallet.insertId ?? 0;
+      } else {
+        walletId = walletResult.first['id'];
+      }
+      
+      // Criar transação
+      final results = await dbHelper.executeQuery(
+        'INSERT INTO transacoes (id_carteira, valor, tipo, descricao) VALUES (?, ?, ?, ?)',
+        [walletId, transaction.amount, transaction.type, transaction.description]
+      );
+      return results.insertId ?? 0;
+    } catch (e) {
+      print('Erro ao criar transação: $e');
+      return 0;
+    }
   }
 
-  // Buscar transação por ID
-  Future<CreditTransactionModel?> getById(int id) async {
-    final db = await dbHelper.database;
-    final result = await db.query(
-      'SELECT t.*, c.id_cliente FROM transacoes t JOIN carteiras c ON t.id_carteira = c.id WHERE t.id = ?',
-      [id]
-    );
-    
-    if (result.isNotEmpty) {
-      final row = result.first;
-      return CreditTransactionModel(
+  // Buscar transações por usuário
+  Future<List<CreditTransactionModel>> getByUserId(int userId) async {
+    try {
+      final result = await dbHelper.query(
+        '''SELECT t.*, c.id_cliente FROM transacoes t 
+           JOIN carteiras c ON t.id_carteira = c.id 
+           WHERE c.id_cliente = ? 
+           ORDER BY t.criado_em DESC''',
+        [userId]
+      );
+      
+      return result.map((row) => CreditTransactionModel(
         id: row['id'],
         userId: row['id_cliente'],
-        type: row['tipo'],
         amount: double.parse(row['valor'].toString()),
-        description: 'Transação',
-        status: 'completed',
-        createdAt: row['criado_em'].toString(),
-      );
+        type: row['tipo'],
+        description: row['descricao'] ?? '',
+        createdAt: DateTime.now().toIso8601String(),
+      )).toList();
+    } catch (e) {
+      print('Erro ao buscar transações do usuário: $e');
+      return [];
     }
-    return null;
   }
 
-  // Listar transações de um usuário
-  Future<List<CreditTransactionModel>> getByUserId(int userId) async {
-    final db = await dbHelper.database;
-    final result = await db.query(
-      'SELECT t.*, c.id_cliente FROM transacoes t JOIN carteiras c ON t.id_carteira = c.id WHERE c.id_cliente = ? ORDER BY t.criado_em DESC',
-      [userId]
-    );
-    
-    return result.map((row) => CreditTransactionModel(
-      id: row['id'],
-      userId: row['id_cliente'],
-      type: row['tipo'],
-      amount: double.parse(row['valor'].toString()),
-      description: 'Transação',
-      status: 'completed',
-      createdAt: row['criado_em'].toString(),
-    )).toList();
+  // Buscar transações por carteira (método mantido para compatibilidade)
+  Future<List<CreditTransactionModel>> getByWalletId(int walletId) async {
+    try {
+      final result = await dbHelper.query(
+        'SELECT t.*, c.id_cliente FROM transacoes t JOIN carteiras c ON t.id_carteira = c.id WHERE t.id_carteira = ? ORDER BY t.criado_em DESC',
+        [walletId]
+      );
+      
+      return result.map((row) => CreditTransactionModel(
+        id: row['id'],
+        userId: row['id_cliente'],
+        amount: double.parse(row['valor'].toString()),
+        type: row['tipo'],
+        description: row['descricao'] ?? '',
+        createdAt: DateTime.now().toIso8601String(),
+      )).toList();
+    } catch (e) {
+      print('Erro ao buscar transações: $e');
+      return [];
+    }
   }
 
-  // Listar transações por tipo
-  Future<List<CreditTransactionModel>> getByType(
-    int userId,
-    String type,
-  ) async {
-    final db = await dbHelper.database;
-    final result = await db.query(
-      'SELECT t.*, c.id_cliente FROM transacoes t JOIN carteiras c ON t.id_carteira = c.id WHERE c.id_cliente = ? AND t.tipo = ? ORDER BY t.criado_em DESC',
-      [userId, type]
-    );
-    
-    return result.map((row) => CreditTransactionModel(
-      id: row['id'],
-      userId: row['id_cliente'],
-      type: row['tipo'],
-      amount: double.parse(row['valor'].toString()),
-      description: 'Transação',
-      status: 'completed',
-      createdAt: row['criado_em'].toString(),
-    )).toList();
-  }
-
-  // Adicionar créditos (recarga)
-  Future<int> addCredit({
-    required int userId,
-    required double amount,
-    required String description,
-    String? paymentMethod,
-  }) async {
-    final db = await dbHelper.database;
-    
-    // Buscar carteira do usuário
-    final carteiraResult = await db.query('SELECT id FROM carteiras WHERE id_cliente = ?', [userId]);
-    if (carteiraResult.isEmpty) return 0;
-    
-    final carteiraId = carteiraResult.first['id'];
-    
-    // Inserir transação
-    final result = await db.query(
-      'INSERT INTO transacoes (id_carteira, valor, tipo) VALUES (?, ?, ?)',
-      [carteiraId, amount, 'credito']
-    );
-    
-    // Atualizar saldo da carteira
-    await db.query(
-      'UPDATE carteiras SET saldo = saldo + ? WHERE id = ?',
-      [amount, carteiraId]
-    );
-    
-    return result.isNotEmpty ? 1 : 0;
-  }
-
-  // Debitar créditos (uso)
-  Future<int> debitCredit({
-    required int userId,
-    required double amount,
-    required String description,
-  }) async {
-    final db = await dbHelper.database;
-    
-    // Buscar carteira do usuário
-    final carteiraResult = await db.query('SELECT id, saldo FROM carteiras WHERE id_cliente = ?', [userId]);
-    if (carteiraResult.isEmpty) return 0;
-    
-    final carteira = carteiraResult.first;
-    final carteiraId = carteira['id'];
-    final saldoAtual = double.parse(carteira['saldo'].toString());
-    
-    // Verificar se tem saldo suficiente
-    if (saldoAtual < amount) return 0;
-    
-    // Inserir transação
-    final result = await db.query(
-      'INSERT INTO transacoes (id_carteira, valor, tipo) VALUES (?, ?, ?)',
-      [carteiraId, amount, 'debito']
-    );
-    
-    // Atualizar saldo da carteira
-    await db.query(
-      'UPDATE carteiras SET saldo = saldo - ? WHERE id = ?',
-      [amount, carteiraId]
-    );
-    
-    return result.isNotEmpty ? 1 : 0;
-  }
-
-  // Deletar transação
-  Future<int> delete(int id) async {
-    final db = await dbHelper.database;
-    final result = await db.query('DELETE FROM transacoes WHERE id = ?', [id]);
-    return result.isNotEmpty ? 1 : 0;
-  }
-
-  // Listar todas as transações
-  Future<List<CreditTransactionModel>> getAll() async {
-    final db = await dbHelper.database;
-    final result = await db.query(
-      'SELECT t.*, c.id_cliente FROM transacoes t JOIN carteiras c ON t.id_carteira = c.id ORDER BY t.criado_em DESC'
-    );
-    
-    return result.map((row) => CreditTransactionModel(
-      id: row['id'],
-      userId: row['id_cliente'],
-      type: row['tipo'],
-      amount: double.parse(row['valor'].toString()),
-      description: 'Transação',
-      status: 'completed',
-      createdAt: row['criado_em'].toString(),
-    )).toList();
+  // Buscar transações por cliente (alias para getByUserId)
+  Future<List<CreditTransactionModel>> getByClientId(int clientId) async {
+    return getByUserId(clientId);
   }
 }
