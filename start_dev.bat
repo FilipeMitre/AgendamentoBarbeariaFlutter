@@ -1,0 +1,13 @@
+@echo off
+echo Iniciando ambiente de desenvolvimento...
+
+echo Iniciando API...
+start "API Server" cmd /k "cd /d api && node server.js"
+
+echo Aguardando API inicializar...
+timeout /t 3 /nobreak > nul
+
+echo Iniciando Flutter...
+flutter run -d chrome
+
+pause
