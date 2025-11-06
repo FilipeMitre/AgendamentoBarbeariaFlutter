@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'api_config.dart';
+import '../models/user_model.dart';
+import 'token_manager.dart';
 
 class AuthService {
   // Login
@@ -65,6 +67,38 @@ class AuthService {
       }
     } catch (e) {
       throw Exception('Erro de conexão: $e');
+    }
+  }
+
+  // Buscar usuário atual
+  Future<UserModel?> getCurrentUser() async {
+    try {
+      final userId = await TokenManager.getUserId();
+      if (userId == null) return null;
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/query'),
+        headers: ApiConfig.getHeaders(),
+        body: jsonEncode({
+          'sql': 'SELECT id, nome as name, email, cpf, papel as role, criado_em as created_at, atualizado_em as updated_at FROM usuarios WHERE id = ?',
+          'params': [userId]
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final results = data['results'];
+        if (results.isNotEmpty) {
+          return UserModel.fromMap({
+            ...results[0],
+            'password': '',
+            'credits': 0.0,
+          });
+        }
+      }
+      return null;
+    } catch (e) {
+      return null;
     }
   }
 }

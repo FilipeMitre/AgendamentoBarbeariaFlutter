@@ -1,5 +1,6 @@
 import '../database/database_helper.dart';
 import '../models/user_model.dart';
+import '../services/token_manager.dart';
 
 class UserDao {
   final dbHelper = DatabaseHelper.instance;
@@ -60,15 +61,26 @@ class UserDao {
       if (result.isNotEmpty) {
         final row = result.first;
         print('Login bem-sucedido via API: $email');
-        return UserModel(
+        final user = UserModel(
           id: row['id'],
           name: row['nome'],
           email: row['email'],
           cpf: row['cpf'],
           password: row['senha'],
+          role: row['papel'] ?? 'cliente',
           createdAt: DateTime.now().toIso8601String(),
           updatedAt: DateTime.now().toIso8601String(),
         );
+        
+        // Salvar dados do usuário incluindo o papel
+        await TokenManager.saveUserData({
+          'id': user.id,
+          'name': user.name,
+          'email': user.email,
+          'role': user.role,
+        });
+        
+        return user;
       }
       
       print('Login falhou via API: credenciais inválidas');

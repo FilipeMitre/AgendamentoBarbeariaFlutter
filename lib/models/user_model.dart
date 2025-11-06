@@ -6,6 +6,7 @@ class UserModel {
   final String password;
   final String? phone;
   final double credits;
+  final String role; // cliente, barbeiro, admin
   final String createdAt;
   final String updatedAt;
 
@@ -17,6 +18,7 @@ class UserModel {
     required this.password,
     this.phone,
     this.credits = 0.0,
+    this.role = 'cliente',
     required this.createdAt,
     required this.updatedAt,
   });
@@ -30,9 +32,10 @@ class UserModel {
       email: map['email'] as String,
       password: map['password'] as String,
       phone: map['phone'] as String?,
-      credits: (map['credits'] as num).toDouble(),
-      createdAt: map['created_at'] as String,
-      updatedAt: map['updated_at'] as String,
+      credits: (map['credits'] as num?)?.toDouble() ?? 0.0,
+      role: map['role'] as String? ?? map['papel'] as String? ?? 'cliente',
+      createdAt: map['created_at'] as String? ?? map['criado_em'] as String? ?? '',
+      updatedAt: map['updated_at'] as String? ?? map['atualizado_em'] as String? ?? '',
     );
   }
 
@@ -46,6 +49,7 @@ class UserModel {
       'password': password,
       'phone': phone,
       'credits': credits,
+      'role': role,
       'created_at': createdAt,
       'updated_at': updatedAt,
     };
@@ -60,6 +64,7 @@ class UserModel {
     String? password,
     String? phone,
     double? credits,
+    String? role,
     String? createdAt,
     String? updatedAt,
   }) {
@@ -71,6 +76,7 @@ class UserModel {
       password: password ?? this.password,
       phone: phone ?? this.phone,
       credits: credits ?? this.credits,
+      role: role ?? this.role,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

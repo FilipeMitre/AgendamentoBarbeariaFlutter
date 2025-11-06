@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_colors.dart';
 import '../widgets/custom_widgets.dart';
 import '../utils/validators.dart';
-import '../navigation/main_navigation.dart';
+import '../navigation/role_based_navigation.dart';
 import '../services/user_service.dart';
 import '../services/credit_service.dart';
 import '../dao/user_dao.dart';
@@ -64,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
       
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const MainNavigation()),
+        MaterialPageRoute(builder: (context) => const RoleBasedNavigation()),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(

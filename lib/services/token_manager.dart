@@ -39,4 +39,10 @@ class TokenManager {
     }
     return null;
   }
+
+  // Buscar ID do usuário
+  static Future<int?> getUserId() async {
+    final userData = await getUserData();
+    return userData?['id'] as int?;
+  }
 }
