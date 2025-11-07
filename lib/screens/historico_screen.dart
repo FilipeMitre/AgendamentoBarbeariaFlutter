@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../services/appointment_history_service.dart';
+import '../services/user_service.dart';
 
 class HistoricoScreen extends StatefulWidget {
   const HistoricoScreen({super.key});
@@ -11,81 +13,47 @@ class HistoricoScreen extends StatefulWidget {
 class _HistoricoScreenState extends State<HistoricoScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-
-  final List<Map<String, dynamic>> agendamentosAtivos = [
-    {
-      'id': '001',
-      'servico': 'Completo',
-      'barbeiro': 'Vinicius Brabo',
-      'data': '11 de Março, 2024',
-      'horario': '14:30',
-      'preco': 55.00,
-      'status': 'confirmado',
-      'barbearia': 'GOATbarber',
-    },
-    {
-      'id': '002',
-      'servico': 'Corte de Cabelo',
-      'barbeiro': 'Carlos Silva',
-      'data': '15 de Março, 2024',
-      'horario': '16:00',
-      'preco': 40.00,
-      'status': 'confirmado',
-      'barbearia': 'GOATbarber',
-    },
-  ];
-
-  final List<Map<String, dynamic>> agendamentosFinalizados = [
-    {
-      'id': '003',
-      'servico': 'Barba',
-      'barbeiro': 'João Pedro',
-      'data': '05 de Março, 2024',
-      'horario': '10:00',
-      'preco': 20.00,
-      'status': 'concluido',
-      'barbearia': 'GOATbarber',
-    },
-    {
-      'id': '004',
-      'servico': 'Completo',
-      'barbeiro': 'Vinicius Brabo',
-      'data': '28 de Fevereiro, 2024',
-      'horario': '15:00',
-      'preco': 55.00,
-      'status': 'concluido',
-      'barbearia': 'GOATbarber',
-    },
-    {
-      'id': '005',
-      'servico': 'Corte de Cabelo',
-      'barbeiro': 'Carlos Silva',
-      'data': '20 de Fevereiro, 2024',
-      'horario': '11:30',
-      'preco': 40.00,
-      'status': 'concluido',
-      'barbearia': 'GOATbarber',
-    },
-  ];
-
-  final List<Map<String, dynamic>> agendamentosCancelados = [
-    {
-      'id': '006',
-      'servico': 'Completo',
-      'barbeiro': 'João Pedro',
-      'data': '18 de Fevereiro, 2024',
-      'horario': '14:00',
-      'preco': 55.00,
-      'status': 'cancelado',
-      'barbearia': 'GOATbarber',
-      'motivoCancelamento': 'Cancelado pelo cliente',
-    },
-  ];
+  final AppointmentHistoryService _appointmentService = AppointmentHistoryService();
+  
+  List<Map<String, dynamic>> agendamentosAtivos = [];
+  List<Map<String, dynamic>> agendamentosFinalizados = [];
+  List<Map<String, dynamic>> agendamentosCancelados = [];
+  bool _isLoading = true;
+  int? _userId;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _loadAppointments();
+  }
+  
+  Future<void> _loadAppointments() async {
+    try {
+      final userId = await UserService.getUserId();
+      if (userId == null) return;
+      
+      setState(() {
+        _userId = userId;
+        _isLoading = true;
+      });
+      
+      final appointments = await _appointmentService.getAllUserAppointments(userId);
+      
+      setState(() {
+        agendamentosAtivos = appointments['confirmado'] ?? [];
+        agendamentosFinalizados = appointments['concluido'] ?? [];
+        agendamentosCancelados = appointments['cancelado'] ?? [];
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao carregar agendamentos: $e')),
+      );
+    }
   }
 
   @override
@@ -126,14 +94,16 @@ class _HistoricoScreenState extends State<HistoricoScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildAgendamentosList(agendamentosAtivos, 'ativos'),
-          _buildAgendamentosList(agendamentosFinalizados, 'finalizados'),
-          _buildAgendamentosList(agendamentosCancelados, 'cancelados'),
-        ],
-      ),
+      body: _isLoading
+          ? Center(child: CircularProgressIndicator())
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                _buildAgendamentosList(agendamentosAtivos, 'ativos'),
+                _buildAgendamentosList(agendamentosFinalizados, 'finalizados'),
+                _buildAgendamentosList(agendamentosCancelados, 'cancelados'),
+              ],
+            ),
     );
   }
 
@@ -213,7 +183,7 @@ class _HistoricoScreenState extends State<HistoricoScreen>
                 ],
               ),
               Text(
-                'R\$ ${agendamento['preco'].toStringAsFixed(2)}',
+                'R\$ ${double.parse(agendamento['preco_creditos'].toString()).toStringAsFixed(2)}',
                 style: TextStyle(
                   color: AppColors.primary,
                   fontSize: 18,
@@ -228,15 +198,15 @@ class _HistoricoScreenState extends State<HistoricoScreen>
           SizedBox(height: 16),
 
           // Informações do agendamento
-          _buildInfoRow(Icons.store, agendamento['barbearia']),
+          _buildInfoRow(Icons.store, 'GOATbarber'),
           SizedBox(height: 12),
-          _buildInfoRow(Icons.content_cut, agendamento['servico']),
+          _buildInfoRow(Icons.content_cut, agendamento['servico_nome']),
           SizedBox(height: 12),
-          _buildInfoRow(Icons.person_outline, agendamento['barbeiro']),
+          _buildInfoRow(Icons.person_outline, agendamento['barbeiro_nome']),
           SizedBox(height: 12),
-          _buildInfoRow(Icons.calendar_today, agendamento['data']),
+          _buildInfoRow(Icons.calendar_today, _formatDate(agendamento['data_hora_agendamento'])),
           SizedBox(height: 12),
-          _buildInfoRow(Icons.access_time, agendamento['horario']),
+          _buildInfoRow(Icons.access_time, _formatTime(agendamento['data_hora_agendamento'])),
 
           // Motivo de cancelamento (se aplicável)
           if (agendamento['motivoCancelamento'] != null) ...[
@@ -364,6 +334,25 @@ class _HistoricoScreenState extends State<HistoricoScreen>
     }
   }
 
+  String _formatDate(String dateTimeStr) {
+    try {
+      final dateTime = DateTime.parse(dateTimeStr);
+      final months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      return '${dateTime.day} de ${months[dateTime.month - 1]}, ${dateTime.year}';
+    } catch (e) {
+      return dateTimeStr;
+    }
+  }
+  
+  String _formatTime(String dateTimeStr) {
+    try {
+      final dateTime = DateTime.parse(dateTimeStr);
+      return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return dateTimeStr;
+    }
+  }
+
   void _showCancelDialog(Map<String, dynamic> agendamento) {
     showDialog(
       context: context,
@@ -381,7 +370,7 @@ class _HistoricoScreenState extends State<HistoricoScreen>
             ),
           ),
           content: Text(
-            'Tem certeza que deseja cancelar este agendamento?\n\nServiço: ${agendamento['servico']}\nData: ${agendamento['data']}\nHorário: ${agendamento['horario']}',
+            'Tem certeza que deseja cancelar este agendamento?\n\nServiço: ${agendamento['servico_nome']}\nData: ${_formatDate(agendamento['data_hora_agendamento'])}\nHorário: ${_formatTime(agendamento['data_hora_agendamento'])}',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
           ),
           actions: [
@@ -393,23 +382,37 @@ class _HistoricoScreenState extends State<HistoricoScreen>
               ),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(context);
-                setState(() {
-                  agendamento['status'] = 'cancelado';
-                  agendamento['motivoCancelamento'] = 'Cancelado pelo cliente';
-                  
-                  // Move para lista de cancelados
-                  agendamentosAtivos.removeWhere((a) => a['id'] == agendamento['id']);
-                  agendamentosCancelados.add(agendamento);
-                });
                 
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Agendamento cancelado com sucesso'),
-                    backgroundColor: AppColors.success,
-                  ),
-                );
+                try {
+                  final success = await _appointmentService.cancelAppointment(agendamento['id']);
+                  
+                  if (success) {
+                    await _loadAppointments(); // Recarregar dados
+                    
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Agendamento cancelado com sucesso'),
+                        backgroundColor: AppColors.success,
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Erro ao cancelar agendamento'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Erro ao cancelar agendamento: $e'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
               },
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
               child: Text('Confirmar cancelamento'),

@@ -116,10 +116,13 @@ class _AgendamentoScreenState extends State<AgendamentoScreen> {
           MaterialPageRoute(
             builder: (context) => ConfirmacaoScreen(
               barber: _selectedBarberName!,
+              barberId: _selectedBarberId!,
+              serviceId: _selectedServiceId!,
               day: _selectedDate!.day,
               time: _selectedTime!,
               package: _selectedService!,
               servicePrice: _selectedServicePrice,
+              selectedDate: _selectedDate!,
             ),
           ),
         );

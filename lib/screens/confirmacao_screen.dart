@@ -4,20 +4,28 @@ import 'recomendacoes_screen.dart';
 import '../navigation/main_navigation.dart';
 import '../services/credit_service.dart';
 import '../services/user_service.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class ConfirmacaoScreen extends StatefulWidget {
   final String barber;
+  final int barberId;
+  final int serviceId;
   final int day;
   final String time;
   final String package;
   final double servicePrice;
+  final DateTime selectedDate;
 
   const ConfirmacaoScreen({
     super.key,
     required this.barber,
+    required this.barberId,
+    required this.serviceId,
     required this.day,
     required this.time,
     required this.package,
+    required this.selectedDate,
     this.servicePrice = 0.0,
   });
 
@@ -223,30 +231,39 @@ class _ConfirmacaoScreenState extends State<ConfirmacaoScreen> {
                     return;
                   }
                   
-                  final success = await CreditService.debitCredits(totalAmount, userId);
-                  
-                  if (success) {
-                    // Atualizar saldo na tela
-                    await _loadCredits();
+                  try {
+                    // Criar agendamento no banco (o trigger vai debitar automaticamente)
+                    final appointmentSuccess = await _createAppointment();
                     
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Agendamento confirmado! R\$ ${totalAmount.toStringAsFixed(2)} debitado.'),
-                        backgroundColor: AppColors.success,
-                      ),
-                    );
-                    
-                    Future.delayed(Duration(seconds: 2), () {
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (context) => const MainNavigation()),
-                        (route) => false,
+                    if (appointmentSuccess) {
+                      await _loadCredits();
+                      
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Agendamento confirmado! R\$ ${totalAmount.toStringAsFixed(2)} debitado.'),
+                          backgroundColor: AppColors.success,
+                        ),
                       );
-                    });
-                  } else {
+                      
+                      Future.delayed(Duration(seconds: 2), () {
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(builder: (context) => const MainNavigation()),
+                          (route) => false,
+                        );
+                      });
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Erro ao criar agendamento. Tente novamente.'),
+                          backgroundColor: AppColors.error,
+                        ),
+                      );
+                    }
+                  } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Erro ao processar pagamento. Tente novamente.'),
+                        content: Text('Erro: $e'),
                         backgroundColor: AppColors.error,
                       ),
                     );
@@ -420,15 +437,36 @@ class _ConfirmacaoScreenState extends State<ConfirmacaoScreen> {
   }
   
   String _getServiceDescription() {
-    switch (widget.package) {
-      case 'Corte de Cabelo':
-        return 'Corte de cabelo profissional';
-      case 'Barba':
-        return 'Aparar e modelar barba';
-      case 'Completo':
-        return 'Pacote com corte de cabelo e barba';
-      default:
-        return 'Serviço selecionado';
+    return 'Serviço profissional de barbearia';
+  }
+  
+  Future<bool> _createAppointment() async {
+    try {
+      final dateTime = DateTime(
+        widget.selectedDate.year,
+        widget.selectedDate.month,
+        widget.selectedDate.day,
+        int.parse(widget.time.split(':')[0]),
+        int.parse(widget.time.split(':')[1]),
+      );
+      
+      final response = await http.post(
+        Uri.parse('http://localhost:3001/api/query'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'sql': 'INSERT INTO agendamentos (id_cliente, id_barbeiro, id_servico, data_hora_agendamento, status) VALUES (?, ?, ?, ?, ?)',
+          'params': [userId, widget.barberId, widget.serviceId, dateTime.toIso8601String(), 'confirmado']
+        }),
+      );
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['results'][0]['insertId'] != null;
+      }
+      return false;
+    } catch (e) {
+      print('Erro ao criar agendamento: $e');
+      return false;
     }
   }
 }
