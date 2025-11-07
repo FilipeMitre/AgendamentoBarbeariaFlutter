@@ -61,8 +61,8 @@ class CreditService {
         if (carteiraResult.isNotEmpty) {
           final carteiraId = carteiraResult.first['id'];
           await dbHelper.executeQuery(
-            'INSERT INTO transacoes (id_carteira, valor, tipo, descricao) VALUES (?, ?, ?, ?)',
-            [carteiraId, amount, 'debito', 'Débito de créditos']
+            'INSERT INTO transacoes (id_carteira, valor, tipo) VALUES (?, ?, ?)',
+            [carteiraId, amount, 'debito']
           );
         }
         
@@ -98,8 +98,8 @@ class CreditService {
       if (carteiraResult.isNotEmpty) {
         final carteiraId = carteiraResult.first['id'];
         await dbHelper.executeQuery(
-          'INSERT INTO transacoes (id_carteira, valor, tipo, descricao) VALUES (?, ?, ?, ?)',
-          [carteiraId, amount, 'credito', 'Adição de créditos']
+          'INSERT INTO transacoes (id_carteira, valor, tipo) VALUES (?, ?, ?)',
+          [carteiraId, amount, 'credito']
         );
       }
       

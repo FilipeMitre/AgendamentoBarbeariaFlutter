@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../services/barber_service.dart';
 import 'confirmacao_screen.dart';
 
 class AgendamentoScreen extends StatefulWidget {
@@ -12,70 +13,92 @@ class AgendamentoScreen extends StatefulWidget {
 class _AgendamentoScreenState extends State<AgendamentoScreen> {
   int _currentStep = 0;
   String? _selectedService;
-  String? _selectedBarber;
+  int? _selectedBarberId;
+  String? _selectedBarberName;
+  int? _selectedServiceId;
+  double _selectedServicePrice = 0.0;
   DateTime? _selectedDate;
   String? _selectedTime;
+  
+  List<Map<String, dynamic>> _barbers = [];
+  List<Map<String, dynamic>> _services = [];
+  List<String> _availableTimes = [];
+  bool _isLoading = false;
+  
+  final BarberService _barberService = BarberService();
 
-  final List<Map<String, dynamic>> services = [
-    {
-      'name': 'Corte de Cabelo',
-      'price': 40.00,
-      'duration': '45 min',
-      'icon': Icons.content_cut,
-    },
-    {
-      'name': 'Barba',
-      'price': 20.00,
-      'duration': '30 min',
-      'icon': Icons.face,
-    },
-    {
-      'name': 'Completo',
-      'price': 55.00,
-      'duration': '1h 15min',
-      'description': 'Corte + Barba',
-      'icon': Icons.star,
-    },
-  ];
 
-  final List<Map<String, String>> barbers = [
-    {
-      'name': 'Vinicius Brabo',
-      'rating': '5.0',
-      'specialty': 'Especialista em degradê',
-    },
-    {
-      'name': 'Carlos Silva',
-      'rating': '4.9',
-      'specialty': 'Especialista em barba',
-    },
-    {
-      'name': 'João Pedro',
-      'rating': '4.8',
-      'specialty': 'Cortes modernos',
-    },
-  ];
-
-  final List<String> times = [
-    '09:00',
-    '09:30',
-    '10:00',
-    '10:30',
-    '11:00',
-    '11:30',
-    '14:00',
-    '14:30',
-    '15:00',
-    '15:30',
-    '16:00',
-    '16:30',
-    '17:00',
-    '17:30',
-    '18:00',
-    '18:30',
-    '19:00',
-    '19:30',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadBarbers();
+  }
+  
+  Future<void> _loadBarbers() async {
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      final barbers = await _barberService.getAvailableBarbers();
+      setState(() {
+        _barbers = barbers;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao carregar barbeiros: $e')),
+      );
+    }
+  }
+  
+  Future<void> _loadBarberServices(int barberId) async {
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      final services = await _barberService.getBarberServices(barberId);
+      setState(() {
+        _services = services;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao carregar serviços: $e')),
+      );
+    }
+  }
+  
+  Future<void> _loadAvailableTimes() async {
+    if (_selectedBarberId == null || _selectedDate == null) return;
+    
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      final times = await _barberService.getAvailableTimes(_selectedBarberId!, _selectedDate!);
+      setState(() {
+        _availableTimes = times;
+        _isLoading = false;
+        _selectedTime = null; // Reset selected time
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao carregar horários: $e')),
+      );
+    }
+  }
 
   void _nextStep() {
     if (_currentStep < 2) {
@@ -85,17 +108,18 @@ class _AgendamentoScreenState extends State<AgendamentoScreen> {
     } else {
       // Ir para tela de confirmação
       if (_selectedService != null &&
-          _selectedBarber != null &&
+          _selectedBarberName != null &&
           _selectedDate != null &&
           _selectedTime != null) {
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => ConfirmacaoScreen(
-              barber: _selectedBarber!,
+              barber: _selectedBarberName!,
               day: _selectedDate!.day,
               time: _selectedTime!,
               package: _selectedService!,
+              servicePrice: _selectedServicePrice,
             ),
           ),
         );
@@ -106,9 +130,9 @@ class _AgendamentoScreenState extends State<AgendamentoScreen> {
   bool _canProceed() {
     switch (_currentStep) {
       case 0:
-        return _selectedService != null;
+        return _selectedBarberId != null;
       case 1:
-        return _selectedBarber != null;
+        return _selectedService != null;
       case 2:
         return _selectedDate != null && _selectedTime != null;
       default:
@@ -184,7 +208,7 @@ class _AgendamentoScreenState extends State<AgendamentoScreen> {
       padding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
       child: Row(
         children: [
-          _buildStepIndicator(0, 'Serviço'),
+          _buildStepIndicator(0, 'Barbeiro'),
           Expanded(
             child: Container(
               height: 2,
@@ -193,7 +217,7 @@ class _AgendamentoScreenState extends State<AgendamentoScreen> {
                   : AppColors.inputBorder,
             ),
           ),
-          _buildStepIndicator(1, 'Barbeiro'),
+          _buildStepIndicator(1, 'Serviço'),
           Expanded(
             child: Container(
               height: 2,
@@ -246,9 +270,9 @@ class _AgendamentoScreenState extends State<AgendamentoScreen> {
   Widget _buildStepContent() {
     switch (_currentStep) {
       case 0:
-        return _buildServiceSelection();
-      case 1:
         return _buildBarberSelection();
+      case 1:
+        return _buildServiceSelection();
       case 2:
         return _buildDateTimeSelection();
       default:
@@ -270,24 +294,48 @@ class _AgendamentoScreenState extends State<AgendamentoScreen> {
         ),
         SizedBox(height: 8),
         Text(
-          'Selecione o serviço desejado',
+          _selectedBarberId != null 
+            ? 'Selecione o serviço desejado'
+            : 'Primeiro selecione um barbeiro para ver os serviços disponíveis',
           style: TextStyle(
             color: AppColors.textSecondary,
             fontSize: 14,
           ),
         ),
         SizedBox(height: 24),
-        ...services.map((service) => _buildServiceCard(service)),
+        if (_isLoading)
+          Center(child: CircularProgressIndicator())
+        else if (_selectedBarberId != null && _services.isNotEmpty)
+          ..._services.map((service) => _buildServiceCard(service))
+        else if (_selectedBarberId != null && _services.isEmpty)
+          Center(
+            child: Text(
+              'Nenhum serviço disponível para este barbeiro',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          )
+        else
+          Center(
+            child: Text(
+              'Selecione um barbeiro primeiro',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
       ],
     );
   }
 
   Widget _buildServiceCard(Map<String, dynamic> service) {
-    final isSelected = _selectedService == service['name'];
+    final isSelected = _selectedService == service['nome'];
     return GestureDetector(
       onTap: () {
         setState(() {
-          _selectedService = service['name'];
+          _selectedService = service['nome'];
+          _selectedServiceId = service['id'];
+          _selectedServicePrice = double.parse(service['preco_creditos'].toString());
+          _selectedDate = null; // Reset date when service changes
+          _selectedTime = null; // Reset time when service changes
+          _availableTimes.clear();
         });
       },
       child: Container(
@@ -311,7 +359,7 @@ class _AgendamentoScreenState extends State<AgendamentoScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
-                service['icon'],
+                Icons.content_cut, // Ícone padrão para serviços
                 color: isSelected ? Colors.black : AppColors.textSecondary,
                 size: 28,
               ),
@@ -322,26 +370,16 @@ class _AgendamentoScreenState extends State<AgendamentoScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    service['name'],
+                    service['nome'],
                     style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  if (service['description'] != null) ...[
-                    SizedBox(height: 4),
-                    Text(
-                      service['description'],
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
                   SizedBox(height: 4),
                   Text(
-                    service['duration'],
+                    '${service['duracao_minutos']} min',
                     style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12,
@@ -354,7 +392,7 @@ class _AgendamentoScreenState extends State<AgendamentoScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  'R\$ ${service['price'].toStringAsFixed(2)}',
+                  'R\$ ${double.parse(service['preco_creditos'].toString()).toStringAsFixed(2)}',
                   style: TextStyle(
                     color: AppColors.primary,
                     fontSize: 18,
@@ -390,18 +428,37 @@ class _AgendamentoScreenState extends State<AgendamentoScreen> {
           ),
         ),
         SizedBox(height: 24),
-        ...barbers.map((barber) => _buildBarberCard(barber)),
+        if (_isLoading)
+          Center(child: CircularProgressIndicator())
+        else if (_barbers.isEmpty)
+          Center(
+            child: Text(
+              'Nenhum barbeiro disponível',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          )
+        else
+          ..._barbers.map((barber) => _buildBarberCard(barber)),
       ],
     );
   }
 
-  Widget _buildBarberCard(Map<String, String> barber) {
-    final isSelected = _selectedBarber == barber['name'];
+  Widget _buildBarberCard(Map<String, dynamic> barber) {
+    final isSelected = _selectedBarberId == barber['id'];
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
         setState(() {
-          _selectedBarber = barber['name'];
+          _selectedBarberId = barber['id'];
+          _selectedBarberName = barber['nome'];
+          _selectedService = null; // Reset service selection
+          _selectedServiceId = null;
+          _selectedServicePrice = 0.0;
+          _selectedDate = null; // Reset date selection
+          _selectedTime = null; // Reset time selection
+          _services.clear();
+          _availableTimes.clear();
         });
+        await _loadBarberServices(barber['id']);
       },
       child: Container(
         margin: EdgeInsets.only(bottom: 16),
@@ -420,12 +477,13 @@ class _AgendamentoScreenState extends State<AgendamentoScreen> {
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: AppColors.inputBackground,
+                color: isSelected ? AppColors.primary.withOpacity(0.2) : AppColors.inputBackground,
                 shape: BoxShape.circle,
+                border: isSelected ? Border.all(color: AppColors.primary, width: 2) : null,
               ),
               child: Icon(
                 Icons.person,
-                color: AppColors.textSecondary,
+                color: isSelected ? AppColors.primary : AppColors.textSecondary,
                 size: 28,
               ),
             ),
@@ -435,33 +493,47 @@ class _AgendamentoScreenState extends State<AgendamentoScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    barber['name']!,
+                    barber['nome'],
                     style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  SizedBox(height: 4),
-                  Text(
-                    barber['specialty']!,
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
+                  if (barber['bio'] != null && barber['bio'].toString().isNotEmpty) ...[
+                    SizedBox(height: 4),
+                    Text(
+                      barber['bio'],
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
+                  ],
                   SizedBox(height: 4),
                   Row(
                     children: [
                       Icon(Icons.star, color: AppColors.starYellow, size: 14),
                       SizedBox(width: 4),
                       Text(
-                        barber['rating']!,
+                        double.parse(barber['rating'].toString()).toStringAsFixed(1),
                         style: TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 12,
                         ),
                       ),
+                      if (int.parse(barber['total_avaliacoes'].toString()) > 0) ...[
+                        SizedBox(width: 4),
+                        Text(
+                          '(${barber['total_avaliacoes']})',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],
@@ -606,6 +678,7 @@ class _AgendamentoScreenState extends State<AgendamentoScreen> {
                           _selectedDate = date;
                           _selectedTime = null; // Reset time
                         });
+                        _loadAvailableTimes();
                       },
                 child: Container(
                   width: 40,
@@ -652,20 +725,36 @@ class _AgendamentoScreenState extends State<AgendamentoScreen> {
         _selectedDate!.month == now.month &&
         _selectedDate!.day == now.day;
     
+    if (_isLoading) {
+      return Center(child: CircularProgressIndicator());
+    }
+    
+    if (_availableTimes.isEmpty) {
+      return Center(
+        child: Text(
+          'Nenhum horário disponível para esta data',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+      );
+    }
+    
     return Wrap(
       spacing: 12,
       runSpacing: 12,
-      children: times.map((time) {
-        final isSelected = _selectedTime == time;
-        final timeHour = int.parse(time.split(':')[0]);
-        final timeMinute = int.parse(time.split(':')[1]);
+      children: _availableTimes.map((time) {
+        // Parse time from database format (HH:MM:SS or HH:MM)
+        final timeParts = time.split(':');
+        final timeHour = int.parse(timeParts[0]);
+        final timeMinute = int.parse(timeParts[1]);
+        final displayTime = '${timeHour.toString().padLeft(2, '0')}:${timeMinute.toString().padLeft(2, '0')}';
+        final isSelected = _selectedTime == displayTime;
         final isPastTime = isToday && 
             (timeHour < now.hour || (timeHour == now.hour && timeMinute <= now.minute));
         
         return GestureDetector(
           onTap: isPastTime ? null : () {
             setState(() {
-              _selectedTime = time;
+              _selectedTime = displayTime;
             });
           },
           child: Container(
@@ -682,7 +771,7 @@ class _AgendamentoScreenState extends State<AgendamentoScreen> {
               ),
             ),
             child: Text(
-              time,
+              displayTime,
               style: TextStyle(
                 color: isPastTime
                     ? AppColors.textSecondary.withOpacity(0.3)

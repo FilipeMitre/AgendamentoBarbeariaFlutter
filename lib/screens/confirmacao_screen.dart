@@ -10,6 +10,7 @@ class ConfirmacaoScreen extends StatefulWidget {
   final int day;
   final String time;
   final String package;
+  final double servicePrice;
 
   const ConfirmacaoScreen({
     super.key,
@@ -17,6 +18,7 @@ class ConfirmacaoScreen extends StatefulWidget {
     required this.day,
     required this.time,
     required this.package,
+    this.servicePrice = 0.0,
   });
 
   @override
@@ -410,29 +412,11 @@ class _ConfirmacaoScreenState extends State<ConfirmacaoScreen> {
   }
   
   String _getServicePrice() {
-    switch (widget.package) {
-      case 'Corte de Cabelo':
-        return 'R\$ 40,00';
-      case 'Barba':
-        return 'R\$ 20,00';
-      case 'Completo':
-        return 'R\$ 55,00';
-      default:
-        return 'R\$ 0,00';
-    }
+    return 'R\$ ${widget.servicePrice.toStringAsFixed(2)}';
   }
   
   double _getServicePriceValue() {
-    switch (widget.package) {
-      case 'Corte de Cabelo':
-        return 40.0;
-      case 'Barba':
-        return 20.0;
-      case 'Completo':
-        return 55.0;
-      default:
-        return 0.0;
-    }
+    return widget.servicePrice;
   }
   
   String _getServiceDescription() {
