@@ -1,6 +1,7 @@
 -- ============================================
 -- BANCO DE DADOS - APP BARBEARIA
 -- Sistema completo com taxas de agendamento e produtos extras
+-- VERSÃO CORRIGIDA - Fix do problema de débito duplo
 -- ============================================
 
 CREATE DATABASE IF NOT EXISTS app_barbearia;
@@ -16,7 +17,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     email VARCHAR(255) UNIQUE NOT NULL,
     cpf VARCHAR(14) UNIQUE NOT NULL,  -- Formato: 000.000.000-00
     senha VARCHAR(255) NOT NULL,
-    papel ENUM('cliente', 'barbeiro', 'admin') NOT NULL,
+    papel ENUM('cliente', 'barbeiro') NOT NULL,
     criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -78,20 +79,11 @@ CREATE TABLE IF NOT EXISTS transacoes (
     id_carteira INT NOT NULL,
     valor DECIMAL(10, 2) NOT NULL,
     tipo ENUM('credito', 'debito') NOT NULL,
+    descricao VARCHAR(255),
     id_agendamento INT,
     criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (id_carteira) REFERENCES carteiras(id) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (id_agendamento) REFERENCES agendamentos(id) ON DELETE SET NULL ON UPDATE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS horarios_disponiveis_teste (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    id_barbeiro INT NOT NULL,
-    data DATE NOT NULL,
-    horario TIME NOT NULL,
-    disponivel BOOLEAN DEFAULT TRUE,
-    FOREIGN KEY (id_barbeiro) REFERENCES usuarios(id) ON DELETE CASCADE ON UPDATE CASCADE,
-    UNIQUE (id_barbeiro, data, horario)
 );
 
 CREATE TABLE IF NOT EXISTS avaliacoes (
@@ -162,15 +154,22 @@ CREATE TABLE IF NOT EXISTS taxas_agendamento (
     FOREIGN KEY (id_agendamento) REFERENCES agendamentos(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
+-- Tabela para registrar produtos/bebidas do agendamento
+CREATE TABLE IF NOT EXISTS agendamento_produtos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_agendamento INT NOT NULL,
+    nome_produto VARCHAR(255) NOT NULL,
+    preco DECIMAL(10,2) NOT NULL,
+    quantidade INT DEFAULT 1,
+    tipo ENUM('produto', 'bebida') NOT NULL,
+    criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_agendamento) REFERENCES agendamentos(id) ON DELETE CASCADE
+);
+
 -- ============================================
 -- INSERÇÃO DE DADOS
 -- ============================================
 
--- Inserir usuário administrador padrão
-INSERT INTO usuarios (nome, email, cpf, senha, papel) VALUES
-('Administrador', 'admin@barbearia.com', '000.000.000-00', 'admin123', 'admin');
-
--- Inserir usuários existentes
 INSERT INTO usuarios (nome, email, cpf, senha, papel) VALUES
 ('João Barbeiro', 'joao.barbeiro@email.com', '123.456.789-01', 'senha123', 'barbeiro'),
 ('Maria Estilista', 'maria.estilista@email.com', '234.567.890-12', 'senha456', 'barbeiro'),
@@ -178,68 +177,61 @@ INSERT INTO usuarios (nome, email, cpf, senha, papel) VALUES
 ('Ana Cliente', 'ana.cliente@email.com', '456.789.012-34', 'senhaabc', 'cliente');
 
 INSERT INTO perfis_barbeiros (id_usuario, bio, url_foto) VALUES
-(2, 'Especialista em cortes clássicos e barbas modeladas. 10 anos de experiência.', 'https://exemplo.com/foto_joao.jpg'),
-(3, 'Artista do cabelo feminino e masculino, com foco em novas tendências.', 'https://exemplo.com/foto_maria.jpg');
+(1, 'Especialista em cortes clássicos e barbas modeladas. 10 anos de experiência.', 'https://exemplo.com/foto_joao.jpg'),
+(2, 'Artista do cabelo feminino e masculino, com foco em novas tendências.', 'https://exemplo.com/foto_maria.jpg');
 
 INSERT INTO servicos (id_barbeiro, nome, duracao_minutos, preco_creditos) VALUES
-(2, 'Corte Clássico', 45, 30.00),
-(2, 'Barba Completa', 30, 25.00),
-(2, 'Corte + Barba', 75, 50.00),
-(3, 'Corte Moderno', 50, 40.00),
-(3, 'Coloração', 120, 150.00),
-(3, 'Design de Sobrancelha', 20, 20.00);
+(1, 'Corte Clássico', 45, 30.00),
+(1, 'Barba Completa', 30, 25.00),
+(1, 'Corte + Barba', 75, 50.00),
+(2, 'Corte Moderno', 50, 40.00),
+(2, 'Coloração', 120, 150.00),
+(2, 'Design de Sobrancelha', 20, 20.00);
 
 INSERT INTO horarios (id_barbeiro, dia_da_semana, hora_inicio, hora_fim) VALUES
-(2, 'Segunda-feira', '09:00:00', '18:00:00'),
-(2, 'Terça-feira', '09:00:00', '18:00:00'),
-(2, 'Quarta-feira', '09:00:00', '18:00:00');
+-- João Barbeiro (id=1)
+(1, 'Segunda-feira', '09:00:00', '18:00:00'),
+(1, 'Terça-feira', '09:00:00', '18:00:00'),
+(1, 'Quarta-feira', '09:00:00', '18:00:00'),
+(1, 'Quinta-feira', '09:00:00', '18:00:00'),
+(1, 'Sexta-feira', '09:00:00', '18:00:00'),
+(1, 'Sábado', '08:00:00', '17:00:00'),
+-- Maria Estilista (id=2)
+(2, 'Segunda-feira', '10:00:00', '19:00:00'),
+(2, 'Terça-feira', '10:00:00', '19:00:00'),
+(2, 'Quarta-feira', '10:00:00', '19:00:00'),
+(2, 'Quinta-feira', '10:00:00', '19:00:00'),
+(2, 'Sexta-feira', '10:00:00', '19:00:00'),
+(2, 'Sábado', '09:00:00', '18:00:00');
 
 INSERT INTO bloqueios (id_barbeiro, inicio_bloqueio, fim_bloqueio) VALUES
-(2, '2025-09-24 12:00:00', '2025-09-24 13:00:00');
+(1, '2025-09-24 12:00:00', '2025-09-24 13:00:00');
 
 INSERT INTO carteiras (id_cliente, saldo) VALUES
-(4, 100.00),
-(5, 50.00);
+(3, 100.00),
+(4, 50.00);
 
 INSERT INTO transacoes (id_carteira, valor, tipo, id_agendamento) VALUES
 (1, 50.00, 'credito', NULL);
 
-INSERT INTO horarios_disponiveis_teste (id_barbeiro, data, horario) VALUES
-(2, '2025-09-25', '09:00:00'),
-(2, '2025-09-25', '09:30:00'),
-(2, '2025-09-25', '10:00:00'),
-(2, '2025-09-25', '10:30:00'),
-(2, '2025-09-25', '11:00:00'),
-(2, '2025-09-25', '11:30:00'),
-(2, '2025-09-25', '13:00:00'),
-(2, '2025-09-25', '13:30:00'),
-(2, '2025-09-25', '14:00:00'),
-(2, '2025-09-25', '14:30:00'),
-(2, '2025-09-25', '15:00:00'),
-(2, '2025-09-25', '15:30:00'),
-(2, '2025-09-25', '16:00:00'),
-(2, '2025-09-25', '16:30:00'),
-(2, '2025-09-25', '17:00:00'),
-(2, '2025-09-25', '17:30:00');
+INSERT INTO agendamentos (id_cliente, id_barbeiro, id_servico, data_hora_agendamento, status)
+VALUES (3, 1, 1, '2025-09-25 10:00:00', 'confirmado');
 
 INSERT INTO agendamentos (id_cliente, id_barbeiro, id_servico, data_hora_agendamento, status)
-VALUES (4, 2, 1, '2025-09-25 10:00:00', 'confirmado');
-
-INSERT INTO agendamentos (id_cliente, id_barbeiro, id_servico, data_hora_agendamento, status)
-VALUES (5, 3, 4, '2025-09-26 15:30:00', 'confirmado'),
-       (4, 2, 2, '2025-09-24 11:00:00', 'concluido'),
-       (4, 2, 3, '2025-09-27 16:00:00', 'cancelado');
+VALUES (4, 2, 4, '2025-09-26 15:30:00', 'confirmado'),
+       (3, 1, 2, '2025-09-24 11:00:00', 'concluido'),
+       (3, 1, 3, '2025-09-27 16:00:00', 'cancelado');
 
 INSERT INTO transacoes (id_carteira, valor, tipo, id_agendamento)
 VALUES (1, 25.00, 'debito', 3);
 
 INSERT INTO avaliacoes (id_cliente, id_barbeiro, id_agendamento, nota, comentario) VALUES
-(4, 2, 1, 5, 'Excelente corte, muito atencioso!'),
-(5, 2, 2, 4, 'O corte ficou ótimo, mas demorou um pouco.'),
-(4, 2, 3, 5, 'Sempre impecável, recomendo demais!');
+(3, 1, 1, 5, 'Excelente corte, muito atencioso!'),
+(4, 1, 2, 4, 'O corte ficou ótimo, mas demorou um pouco.'),
+(3, 1, 3, 5, 'Sempre impecável, recomendo demais!');
 
 INSERT INTO avaliacoes (id_cliente, id_barbeiro, id_agendamento, nota, comentario) VALUES
-(5, 3, 4, 5, 'Adorei a coloração, ela é uma artista.');
+(4, 2, 4, 5, 'Adorei a coloração, ela é uma artista.');
 
 INSERT INTO produtos (nome, descricao, categoria, preco, estoque) VALUES
 ('Coca-Cola Lata', 'Refrigerante 350ml', 'bebida', 5.00, 50),
@@ -253,19 +245,20 @@ INSERT INTO produtos (nome, descricao, categoria, preco, estoque) VALUES
 -- VIEWS
 -- ============================================
 
-CREATE VIEW vw_horarios_disponiveis_teste AS
+CREATE VIEW vw_horarios_barbeiros AS
 SELECT
     b.nome AS nome_barbeiro,
-    hd.data,
-    hd.horario
+    h.dia_da_semana,
+    h.hora_inicio,
+    h.hora_fim
 FROM
-    horarios_disponiveis_teste hd
+    horarios h
 JOIN
-    usuarios b ON hd.id_barbeiro = b.id
-WHERE
-    hd.disponivel = TRUE
+    usuarios b ON h.id_barbeiro = b.id
 ORDER BY
-    hd.data, hd.horario;
+    b.nome, 
+    FIELD(h.dia_da_semana, 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'),
+    h.hora_inicio;
 
 CREATE VIEW vw_agendamentos_detalhados AS
 SELECT
@@ -424,51 +417,139 @@ GROUP BY p.id
 ORDER BY p.categoria, p.nome;
 
 -- ============================================
--- TRIGGERS
+-- TRIGGERS CORRIGIDOS
 -- ============================================
 
+-- Trigger condicional para débito (evita débito duplo quando controlado pela aplicação)
 DELIMITER $$
 
-CREATE TRIGGER trg_atualizar_horario_disponivel
+CREATE TRIGGER trg_debitar_agendamento_condicional
 AFTER INSERT ON agendamentos
 FOR EACH ROW
 BEGIN
-    DECLARE v_data DATE;
-    DECLARE v_horario TIME;
-    SET v_data = DATE(NEW.data_hora_agendamento);
-    SET v_horario = TIME(NEW.data_hora_agendamento);
-    UPDATE horarios_disponiveis_teste
-    SET disponivel = FALSE
-    WHERE
-        id_barbeiro = NEW.id_barbeiro
-        AND data = v_data
-        AND horario = v_horario;
+    DECLARE v_preco_servico DECIMAL(10, 2);
+    DECLARE v_id_carteira INT;
+    
+    -- Só executar se não for controlado pela aplicação
+    IF @disable_trigger IS NULL THEN
+        -- Buscar preço do serviço
+        SELECT preco_creditos INTO v_preco_servico
+        FROM servicos
+        WHERE id = NEW.id_servico;
+        
+        -- Buscar ID da carteira
+        SELECT id INTO v_id_carteira
+        FROM carteiras
+        WHERE id_cliente = NEW.id_cliente;
+        
+        -- Debitar da carteira (apenas o serviço)
+        IF v_id_carteira IS NOT NULL THEN
+            UPDATE carteiras
+            SET saldo = saldo - v_preco_servico
+            WHERE id = v_id_carteira;
+            
+            -- Registrar transação
+            INSERT INTO transacoes (id_carteira, valor, tipo, id_agendamento, descricao)
+            VALUES (v_id_carteira, v_preco_servico, 'debito', NEW.id, 'Pagamento de serviço');
+        END IF;
+    END IF;
+END$$
+
+DELIMITER ;
+
+-- Trigger para reembolso quando cancelar
+DELIMITER $$
+
+CREATE TRIGGER trg_reembolsar_cancelamento
+AFTER UPDATE ON agendamentos
+FOR EACH ROW
+BEGIN
+    DECLARE v_preco_servico DECIMAL(10, 2);
+    DECLARE v_id_carteira INT;
+    
+    -- Se mudou de confirmado para cancelado, reembolsar
+    IF OLD.status = 'confirmado' AND NEW.status = 'cancelado' THEN
+        SELECT preco_creditos INTO v_preco_servico
+        FROM servicos
+        WHERE id = NEW.id_servico;
+        
+        SELECT id INTO v_id_carteira
+        FROM carteiras
+        WHERE id_cliente = NEW.id_cliente;
+        
+        IF v_id_carteira IS NOT NULL THEN
+            UPDATE carteiras
+            SET saldo = saldo + v_preco_servico
+            WHERE id = v_id_carteira;
+            
+            INSERT INTO transacoes (id_carteira, valor, tipo, id_agendamento, descricao)
+            VALUES (v_id_carteira, v_preco_servico, 'credito', NEW.id, 'Reembolso por cancelamento');
+        END IF;
+    END IF;
 END$$
 
 DELIMITER ;
 
 DELIMITER $$
 
-CREATE TRIGGER trg_atualizar_saldo_apos_concluido
-AFTER UPDATE ON agendamentos
+CREATE TRIGGER trg_verificar_disponibilidade_insert
+BEFORE INSERT ON agendamentos
 FOR EACH ROW
 BEGIN
-    DECLARE v_preco_servico DECIMAL(10, 2);
-    DECLARE v_id_carteira INT;
-    IF NEW.status = 'concluido' AND OLD.status <> 'concluido' THEN
-        SELECT preco_creditos INTO v_preco_servico
-        FROM servicos
-        WHERE id = NEW.id_servico;
-        SELECT id INTO v_id_carteira
-        FROM carteiras
-        WHERE id_cliente = NEW.id_cliente;
-        IF v_id_carteira IS NOT NULL THEN
-            UPDATE carteiras
-            SET saldo = saldo - v_preco_servico
-            WHERE id = v_id_carteira;
-            INSERT INTO transacoes (id_carteira, valor, tipo, id_agendamento)
-            VALUES (v_id_carteira, v_preco_servico, 'debito', NEW.id);
-        END IF;
+    DECLARE v_duracao_servico INT;
+    DECLARE v_nome_dia VARCHAR(20);
+    
+    SELECT duracao_minutos INTO v_duracao_servico
+    FROM servicos
+    WHERE id = NEW.id_servico;
+    
+    -- Converte número do dia da semana para nome em português
+    CASE DAYOFWEEK(NEW.data_hora_agendamento)
+        WHEN 1 THEN SET v_nome_dia = 'Domingo';
+        WHEN 2 THEN SET v_nome_dia = 'Segunda-feira';
+        WHEN 3 THEN SET v_nome_dia = 'Terça-feira';
+        WHEN 4 THEN SET v_nome_dia = 'Quarta-feira';
+        WHEN 5 THEN SET v_nome_dia = 'Quinta-feira';
+        WHEN 6 THEN SET v_nome_dia = 'Sexta-feira';
+        WHEN 7 THEN SET v_nome_dia = 'Sábado';
+    END CASE;
+    
+    -- Verifica se o barbeiro trabalha neste dia da semana e horário
+    IF NOT EXISTS (
+        SELECT 1
+        FROM horarios
+        WHERE id_barbeiro = NEW.id_barbeiro
+          AND dia_da_semana = v_nome_dia
+          AND TIME(NEW.data_hora_agendamento) >= hora_inicio
+          AND ADDTIME(TIME(NEW.data_hora_agendamento), SEC_TO_TIME(v_duracao_servico * 60)) <= hora_fim
+    ) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Erro: O horário do agendamento está fora do expediente do barbeiro.';
+    END IF;
+    
+    -- Verifica bloqueios
+    IF EXISTS (
+        SELECT 1
+        FROM bloqueios
+        WHERE id_barbeiro = NEW.id_barbeiro
+          AND NEW.data_hora_agendamento >= inicio_bloqueio
+          AND NEW.data_hora_agendamento < fim_bloqueio
+    ) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Erro: O horário do agendamento está em um período de bloqueio.';
+    END IF;
+    
+    -- Verifica conflitos com outros agendamentos
+    IF EXISTS (
+        SELECT 1
+        FROM agendamentos
+        WHERE id_barbeiro = NEW.id_barbeiro
+          AND status IN ('confirmado', 'pendente')
+          AND (
+              (NEW.data_hora_agendamento BETWEEN data_hora_agendamento AND DATE_ADD(data_hora_agendamento, INTERVAL v_duracao_servico MINUTE))
+              OR
+              (data_hora_agendamento BETWEEN NEW.data_hora_agendamento AND DATE_ADD(NEW.data_hora_agendamento, INTERVAL v_duracao_servico MINUTE))
+          )
+    ) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Erro: Já existe um agendamento ocupando este horário.';
     END IF;
 END$$
 
@@ -507,81 +588,6 @@ BEGIN
             (NEW.id_barbeiro, v_mensagem_barbeiro, 'agendamento_confirmado');
         END IF;
     END IF;
-END$$
-
-DELIMITER ;
-
-DELIMITER $$
-
-CREATE TRIGGER trg_verificar_disponibilidade_insert
-BEFORE INSERT ON agendamentos
-FOR EACH ROW
-BEGIN
-    DECLARE v_horario_ocupado INT DEFAULT 0;
-    DECLARE v_duracao_servico INT;
-    DECLARE v_dia_semana VARCHAR(20);
-    SELECT duracao_minutos INTO v_duracao_servico
-    FROM servicos
-    WHERE id = NEW.id_servico;
-    SET v_dia_semana = DAYNAME(NEW.data_hora_agendamento);
-    IF NOT EXISTS (
-        SELECT 1
-        FROM horarios
-        WHERE id_barbeiro = NEW.id_barbeiro
-          AND dia_da_semana = v_dia_semana
-          AND TIME(NEW.data_hora_agendamento) >= hora_inicio
-          AND TIME(NEW.data_hora_agendamento) < hora_fim
-    ) THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Erro: O horário do agendamento está fora do expediente do barbeiro.';
-    END IF;
-    IF EXISTS (
-        SELECT 1
-        FROM bloqueios
-        WHERE id_barbeiro = NEW.id_barbeiro
-          AND NEW.data_hora_agendamento >= inicio_bloqueio
-          AND NEW.data_hora_agendamento < fim_bloqueio
-    ) THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Erro: O horário do agendamento está em um período de bloqueio.';
-    END IF;
-    IF EXISTS (
-        SELECT 1
-        FROM agendamentos
-        WHERE id_barbeiro = NEW.id_barbeiro
-          AND status IN ('confirmado', 'concluido')
-          AND NEW.data_hora_agendamento BETWEEN data_hora_agendamento AND DATE_ADD(data_hora_agendamento, INTERVAL v_duracao_servico MINUTE)
-    ) THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Erro: Já existe um agendamento ocupando este horário.';
-    END IF;
-END$$
-
-DELIMITER ;
-
-DELIMITER $$
-
-CREATE TRIGGER trg_criar_taxa_agendamento
-AFTER INSERT ON agendamentos
-FOR EACH ROW
-BEGIN
-    DECLARE v_preco_servico DECIMAL(10, 2);
-    DECLARE v_taxa_garantia DECIMAL(10, 2);
-    DECLARE v_id_carteira INT;
-    SELECT preco_creditos INTO v_preco_servico
-    FROM servicos
-    WHERE id = NEW.id_servico;
-    SET v_taxa_garantia = v_preco_servico * 0.5;
-    SELECT id INTO v_id_carteira
-    FROM carteiras
-    WHERE id_cliente = NEW.id_cliente;
-    INSERT INTO taxas_agendamento (id_agendamento, valor_servico, taxa_garantia)
-    VALUES (NEW.id, v_preco_servico, v_taxa_garantia);
-    UPDATE carteiras
-    SET saldo = saldo - v_taxa_garantia
-    WHERE id = v_id_carteira;
-    INSERT INTO transacoes (id_carteira, valor, tipo, id_agendamento)
-    VALUES (v_id_carteira, v_taxa_garantia, 'debito', NEW.id);
-    UPDATE taxas_agendamento
-    SET taxa_paga = TRUE, data_pagamento_taxa = NOW()
-    WHERE id_agendamento = NEW.id;
 END$$
 
 DELIMITER ;
@@ -644,89 +650,6 @@ BEGIN
     WHERE id = v_id_carteira;
     INSERT INTO transacoes (id_carteira, valor, tipo, id_agendamento)
     VALUES (v_id_carteira, NEW.preco_total, 'debito', NEW.id_agendamento);
-END$$
-
-DELIMITER ;
-
--- ============================================
--- TRIGGER PARA VALIDAR CPF NO INSERT
--- ============================================
-DELIMITER $$
-
-CREATE TRIGGER trg_validar_cpf_insert
-BEFORE INSERT ON usuarios
-FOR EACH ROW
-BEGIN
-    DECLARE v_cpf_limpo VARCHAR(11);
-    
-    -- Remove espaços em branco
-    SET NEW.cpf = TRIM(NEW.cpf);
-    
-    -- Verifica formato (000.000.000-00 ou 00000000000)
-    IF NEW.cpf NOT REGEXP '^[0-9]{3}\.[0-9]{3}\.[0-9]{3}-[0-9]{2}$' 
-       AND NEW.cpf NOT REGEXP '^[0-9]{11}$' THEN
-        SIGNAL SQLSTATE '45000' 
-        SET MESSAGE_TEXT = 'Erro: CPF deve estar no formato 000.000.000-00 ou 00000000000';
-    END IF;
-    
-    -- Formata o CPF se vier sem pontuação
-    IF NEW.cpf REGEXP '^[0-9]{11}$' THEN
-        SET NEW.cpf = CONCAT(
-            SUBSTRING(NEW.cpf, 1, 3), '.',
-            SUBSTRING(NEW.cpf, 4, 3), '.',
-            SUBSTRING(NEW.cpf, 7, 3), '-',
-            SUBSTRING(NEW.cpf, 10, 2)
-        );
-    END IF;
-    
-    -- Valida o CPF usando a função
-    IF NOT fn_validar_cpf(NEW.cpf) THEN
-        SIGNAL SQLSTATE '45000' 
-        SET MESSAGE_TEXT = 'Erro: CPF inválido';
-    END IF;
-END$$
-
-DELIMITER ;
-
--- ============================================
--- TRIGGER PARA VALIDAR CPF NO UPDATE
--- ============================================
-DELIMITER $$
-
-CREATE TRIGGER trg_validar_cpf_update
-BEFORE UPDATE ON usuarios
-FOR EACH ROW
-BEGIN
-    DECLARE v_cpf_limpo VARCHAR(11);
-    
-    -- Só valida se o CPF foi alterado
-    IF NEW.cpf != OLD.cpf THEN
-        -- Remove espaços em branco
-        SET NEW.cpf = TRIM(NEW.cpf);
-        
-        -- Verifica formato
-        IF NEW.cpf NOT REGEXP '^[0-9]{3}\.[0-9]{3}\.[0-9]{3}-[0-9]{2}$' 
-           AND NEW.cpf NOT REGEXP '^[0-9]{11}$' THEN
-            SIGNAL SQLSTATE '45000' 
-            SET MESSAGE_TEXT = 'Erro: CPF deve estar no formato 000.000.000-00 ou 00000000000';
-        END IF;
-        
-        -- Formata o CPF se vier sem pontuação
-        IF NEW.cpf REGEXP '^[0-9]{11}$' THEN
-            SET NEW.cpf = CONCAT(
-                SUBSTRING(NEW.cpf, 1, 3), '.',
-                SUBSTRING(NEW.cpf, 4, 3), '.',
-                SUBSTRING(NEW.cpf, 7, 3), '-',
-                SUBSTRING(NEW.cpf, 10, 2)
-            );
-        END IF;
-        
-        -- Valida o CPF
-        IF NOT fn_validar_cpf(NEW.cpf) THEN
-            SIGNAL SQLSTATE '45000' 
-            SET MESSAGE_TEXT = 'Erro: CPF inválido';
-        END IF;
-    END IF;
 END$$
 
 DELIMITER ;
@@ -816,142 +739,21 @@ END$$
 
 DELIMITER ;
 
-DELIMITER $$
-
-CREATE PROCEDURE sp_cadastrar_usuario(
-    IN p_nome VARCHAR(255),
-    IN p_email VARCHAR(255),
-    IN p_cpf VARCHAR(14),
-    IN p_senha VARCHAR(255),
-    IN p_papel ENUM('cliente', 'barbeiro', 'admin')
-)
-BEGIN
-    DECLARE v_cpf_existe INT DEFAULT 0;
-    DECLARE v_email_existe INT DEFAULT 0;
-    
-    START TRANSACTION;
-    
-    -- Verifica se CPF já existe
-    SELECT COUNT(*) INTO v_cpf_existe
-    FROM usuarios
-    WHERE cpf = p_cpf;
-    
-    IF v_cpf_existe > 0 THEN
-        ROLLBACK;
-        SIGNAL SQLSTATE '45000' 
-        SET MESSAGE_TEXT = 'Erro: CPF já cadastrado no sistema';
-    END IF;
-    
-    -- Verifica se email já existe
-    SELECT COUNT(*) INTO v_email_existe
-    FROM usuarios
-    WHERE email = p_email;
-    
-    IF v_email_existe > 0 THEN
-        ROLLBACK;
-        SIGNAL SQLSTATE '45000' 
-        SET MESSAGE_TEXT = 'Erro: Email já cadastrado no sistema';
-    END IF;
-    
-    -- Insere o usuário (o trigger vai validar o CPF)
-    INSERT INTO usuarios (nome, email, cpf, senha, papel)
-    VALUES (p_nome, p_email, p_cpf, p_senha, p_papel);
-    
-    -- Se for cliente, cria a carteira automaticamente
-    IF p_papel = 'cliente' THEN
-        INSERT INTO carteiras (id_cliente, saldo)
-        VALUES (LAST_INSERT_ID(), 0.00);
-    END IF;
-    
-    COMMIT;
-    
-    SELECT LAST_INSERT_ID() AS id_usuario, 'Usuário cadastrado com sucesso!' AS mensagem;
-END$$
-
-DELIMITER ;
-
 -- ============================================
--- FUNÇÕES
+-- COMENTÁRIOS SOBRE AS CORREÇÕES
 -- ============================================
 
-DELIMITER $$
+-- PROBLEMA IDENTIFICADO:
+-- O trigger anterior só debitava o valor do serviço (R$ 50,00)
+-- Produtos e bebidas (R$ 4,59) não eram debitados
+-- Resultado: Saldo incorreto (R$ 55,00 em vez de R$ 50,41)
+-- 
+-- SOLUÇÃO IMPLEMENTADA:
+-- 1. Trigger condicional evita débito duplo usando @disable_trigger
+-- 2. Aplicação debita valor total ANTES de criar agendamento
+-- 3. Nova tabela agendamento_produtos para rastrear produtos/bebidas
+-- 4. Campo descricao adicionado na tabela transacoes para melhor rastreamento
 
-CREATE FUNCTION fn_validar_cpf(p_cpf VARCHAR(14))
-RETURNS BOOLEAN
-DETERMINISTIC
-BEGIN
-    DECLARE v_cpf_numeros VARCHAR(11);
-    DECLARE v_soma INT DEFAULT 0;
-    DECLARE v_resto INT;
-    DECLARE v_digito1 INT;
-    DECLARE v_digito2 INT;
-    DECLARE v_i INT;
-    DECLARE v_todos_iguais BOOLEAN DEFAULT TRUE;
-    
-    -- Remove pontos e traço, mantendo apenas números
-    SET v_cpf_numeros = REPLACE(REPLACE(p_cpf, '.', ''), '-', '');
-    
-    -- Verifica se tem exatamente 11 dígitos
-    IF LENGTH(v_cpf_numeros) != 11 OR v_cpf_numeros NOT REGEXP '^[0-9]{11}$' THEN
-        RETURN FALSE;
-    END IF;
-    
-    -- Verifica se todos os dígitos são iguais (CPFs inválidos conhecidos)
-    SET v_i = 1;
-    WHILE v_i <= 10 DO
-        IF SUBSTRING(v_cpf_numeros, v_i, 1) != SUBSTRING(v_cpf_numeros, v_i + 1, 1) THEN
-            SET v_todos_iguais = FALSE;
-        END IF;
-        SET v_i = v_i + 1;
-    END WHILE;
-    
-    IF v_todos_iguais THEN
-        RETURN FALSE;
-    END IF;
-    
-    -- Calcula o primeiro dígito verificador
-    SET v_soma = 0;
-    SET v_i = 1;
-    WHILE v_i <= 9 DO
-        SET v_soma = v_soma + (CAST(SUBSTRING(v_cpf_numeros, v_i, 1) AS UNSIGNED) * (11 - v_i));
-        SET v_i = v_i + 1;
-    END WHILE;
-    
-    SET v_resto = v_soma % 11;
-    IF v_resto < 2 THEN
-        SET v_digito1 = 0;
-    ELSE
-        SET v_digito1 = 11 - v_resto;
-    END IF;
-    
-    -- Verifica o primeiro dígito
-    IF v_digito1 != CAST(SUBSTRING(v_cpf_numeros, 10, 1) AS UNSIGNED) THEN
-        RETURN FALSE;
-    END IF;
-    
-    -- Calcula o segundo dígito verificador
-    SET v_soma = 0;
-    SET v_i = 1;
-    WHILE v_i <= 10 DO
-        SET v_soma = v_soma + (CAST(SUBSTRING(v_cpf_numeros, v_i, 1) AS UNSIGNED) * (12 - v_i));
-        SET v_i = v_i + 1;
-    END WHILE;
-    
-    SET v_resto = v_soma % 11;
-    IF v_resto < 2 THEN
-        SET v_digito2 = 0;
-    ELSE
-        SET v_digito2 = 11 - v_resto;
-    END IF;
-    
-    -- Verifica o segundo dígito
-    IF v_digito2 != CAST(SUBSTRING(v_cpf_numeros, 11, 1) AS UNSIGNED) THEN
-        RETURN FALSE;
-    END IF;
-    
-    RETURN TRUE;
-END$$
-
-DELIMITER ;
-
-SELECT * FROM usuarios;
+select * from usuarios;
+select * from agendamentos;
+select * from carteiras;

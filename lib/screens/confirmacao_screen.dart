@@ -232,8 +232,21 @@ class _ConfirmacaoScreenState extends State<ConfirmacaoScreen> {
                   }
                   
                   try {
-                    // Criar agendamento no banco (o trigger vai debitar automaticamente)
-                    final appointmentSuccess = await _createAppointment();
+                    // Debitar o valor total da carteira ANTES de criar o agendamento
+                    final debitSuccess = await CreditService.debitCredits(totalAmount, userId);
+                    
+                    if (!debitSuccess) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Erro ao processar pagamento. Tente novamente.'),
+                          backgroundColor: AppColors.error,
+                        ),
+                      );
+                      return;
+                    }
+                    
+                    // Criar agendamento no banco (sem trigger de débito)
+                    final appointmentSuccess = await _createAppointmentWithoutTrigger();
                     
                     if (appointmentSuccess) {
                       await _loadCredits();
@@ -253,9 +266,11 @@ class _ConfirmacaoScreenState extends State<ConfirmacaoScreen> {
                         );
                       });
                     } else {
+                      // Se falhou ao criar agendamento, reembolsar
+                      await CreditService.addCredits(totalAmount, userId);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Erro ao criar agendamento. Tente novamente.'),
+                          content: Text('Erro ao criar agendamento. Valor reembolsado.'),
                           backgroundColor: AppColors.error,
                         ),
                       );
@@ -456,6 +471,57 @@ class _ConfirmacaoScreenState extends State<ConfirmacaoScreen> {
         body: jsonEncode({
           'sql': 'INSERT INTO agendamentos (id_cliente, id_barbeiro, id_servico, data_hora_agendamento, status) VALUES (?, ?, ?, ?, ?)',
           'params': [userId, widget.barberId, widget.serviceId, dateTime.toIso8601String(), 'confirmado']
+        }),
+      );
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['results'][0]['insertId'] != null;
+      }
+      return false;
+    } catch (e) {
+      print('Erro ao criar agendamento: $e');
+      return false;
+    }
+  }
+  
+  Future<bool> _createAppointmentWithoutTrigger() async {
+    try {
+      final dateTime = DateTime(
+        widget.selectedDate.year,
+        widget.selectedDate.month,
+        widget.selectedDate.day,
+        int.parse(widget.time.split(':')[0]),
+        int.parse(widget.time.split(':')[1]),
+      );
+      
+      // Primeiro, desabilitar o trigger
+      await http.post(
+        Uri.parse('http://localhost:3001/api/query'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'sql': 'SET @disable_trigger = 1',
+          'params': []
+        }),
+      );
+      
+      // Inserir agendamento
+      final response = await http.post(
+        Uri.parse('http://localhost:3001/api/query'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'sql': 'INSERT INTO agendamentos (id_cliente, id_barbeiro, id_servico, data_hora_agendamento, status) VALUES (?, ?, ?, ?, ?)',
+          'params': [userId, widget.barberId, widget.serviceId, dateTime.toIso8601String(), 'confirmado']
+        }),
+      );
+      
+      // Reabilitar o trigger
+      await http.post(
+        Uri.parse('http://localhost:3001/api/query'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'sql': 'SET @disable_trigger = NULL',
+          'params': []
         }),
       );
       
