@@ -583,8 +583,17 @@ class _BarberScheduleScreenState extends State<BarberScheduleScreen> {
   String _formatTime(String? dateTime) {
     if (dateTime == null) return '--:--';
     try {
-      final date = DateTime.parse(dateTime);
-      return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+      // Parse sem conversão de timezone
+      final parts = dateTime.split(' ');
+      if (parts.length >= 2) {
+        final timeParts = parts[1].split(':');
+        if (timeParts.length >= 2) {
+          final hour = timeParts[0].padLeft(2, '0');
+          final minute = timeParts[1].padLeft(2, '0');
+          return '$hour:$minute';
+        }
+      }
+      return '--:--';
     } catch (e) {
       return '--:--';
     }

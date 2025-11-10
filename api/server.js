@@ -14,7 +14,9 @@ const dbConfig = {
   port: 3306,
   user: 'root',
   password: 'Abivis54!',
-  database: 'app_barbearia'
+  database: 'app_barbearia',
+  timezone: '-03:00',
+  dateStrings: true  // Retorna datas como strings, não como objetos Date
 };
 
 // Função para conectar ao MySQL

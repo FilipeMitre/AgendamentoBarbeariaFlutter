@@ -729,64 +729,162 @@ class _AgendamentoScreenState extends State<AgendamentoScreen> {
         _selectedDate!.day == now.day;
     
     if (_isLoading) {
-      return Center(child: CircularProgressIndicator());
+      return Column(
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 16),
+          Text(
+            'Carregando horários disponíveis...',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+        ],
+      );
     }
     
     if (_availableTimes.isEmpty) {
-      return Center(
-        child: Text(
-          'Nenhum horário disponível para esta data',
-          style: TextStyle(color: AppColors.textSecondary),
+      return Container(
+        padding: EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.error.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.error.withOpacity(0.3)),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              Icons.schedule_outlined,
+              color: AppColors.error,
+              size: 32,
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Nenhum horário disponível',
+              style: TextStyle(
+                color: AppColors.error,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Todos os horários estão ocupados para esta data.\nTente escolher outro dia.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
+            ),
+          ],
         ),
       );
     }
     
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: _availableTimes.map((time) {
-        // Parse time from database format (HH:MM:SS or HH:MM)
-        final timeParts = time.split(':');
-        final timeHour = int.parse(timeParts[0]);
-        final timeMinute = int.parse(timeParts[1]);
-        final displayTime = '${timeHour.toString().padLeft(2, '0')}:${timeMinute.toString().padLeft(2, '0')}';
-        final isSelected = _selectedTime == displayTime;
-        final isPastTime = isToday && 
-            (timeHour < now.hour || (timeHour == now.hour && timeMinute <= now.minute));
-        
-        return GestureDetector(
-          onTap: isPastTime ? null : () {
-            setState(() {
-              _selectedTime = displayTime;
-            });
-          },
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? AppColors.primary
-                  : AppColors.cardBackground,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isSelected
-                    ? AppColors.primary
-                    : AppColors.inputBorder,
-              ),
-            ),
-            child: Text(
-              displayTime,
-              style: TextStyle(
-                color: isPastTime
-                    ? AppColors.textSecondary.withOpacity(0.3)
-                    : isSelected ? Colors.black : AppColors.textPrimary,
-                fontWeight:
-                    isSelected ? FontWeight.bold : FontWeight.normal,
-                fontSize: 14,
-              ),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Legenda
+        Container(
+          padding: EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
           ),
-        );
-      }).toList(),
+          child: Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                color: AppColors.primary,
+                size: 16,
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Horários em verde estão disponíveis. Horários ocupados não aparecem na lista.',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: 16),
+        
+        // Grid de horários
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: _availableTimes.map((time) {
+            // Parse time from database format (HH:MM:SS or HH:MM)
+            final timeParts = time.split(':');
+            final timeHour = int.parse(timeParts[0]);
+            final timeMinute = int.parse(timeParts[1]);
+            final displayTime = '${timeHour.toString().padLeft(2, '0')}:${timeMinute.toString().padLeft(2, '0')}';
+            final isSelected = _selectedTime == displayTime;
+            final isPastTime = isToday && 
+                (timeHour < now.hour || (timeHour == now.hour && timeMinute <= now.minute));
+            
+            return GestureDetector(
+              onTap: isPastTime ? null : () {
+                setState(() {
+                  _selectedTime = displayTime;
+                });
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: isPastTime
+                      ? AppColors.inputBorder.withOpacity(0.3)
+                      : isSelected
+                          ? AppColors.primary
+                          : AppColors.success.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isPastTime
+                        ? AppColors.inputBorder
+                        : isSelected
+                            ? AppColors.primary
+                            : AppColors.success,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!isPastTime && !isSelected)
+                      Icon(
+                        Icons.check_circle_outline,
+                        color: AppColors.success,
+                        size: 16,
+                      ),
+                    if (!isPastTime && !isSelected) SizedBox(width: 4),
+                    Text(
+                      displayTime,
+                      style: TextStyle(
+                        color: isPastTime
+                            ? AppColors.textSecondary.withOpacity(0.5)
+                            : isSelected 
+                                ? Colors.black 
+                                : AppColors.success,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                    if (isPastTime) ...[
+                      SizedBox(width: 4),
+                      Icon(
+                        Icons.access_time,
+                        color: AppColors.textSecondary.withOpacity(0.5),
+                        size: 12,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 }

@@ -258,7 +258,27 @@ class _BarberScreenState extends State<BarberScreen> with TickerProviderStateMix
         itemCount: _appointments.length,
         itemBuilder: (context, index) {
           final appointment = _appointments[index];
-          final dateTime = DateTime.parse(appointment['data_hora_agendamento']);
+          final dateTimeStr = appointment['data_hora_agendamento'];
+          
+          // Parse manual sem conversão de timezone
+          String formattedDateTime = '';
+          try {
+            final parts = dateTimeStr.split(' ');
+            if (parts.length >= 2) {
+              final dateParts = parts[0].split('-');
+              final timeParts = parts[1].split(':');
+              if (dateParts.length == 3 && timeParts.length >= 2) {
+                final day = dateParts[2];
+                final month = dateParts[1];
+                final year = dateParts[0];
+                final hour = timeParts[0].padLeft(2, '0');
+                final minute = timeParts[1].padLeft(2, '0');
+                formattedDateTime = '$day/$month/$year às $hour:$minute';
+              }
+            }
+          } catch (e) {
+            formattedDateTime = dateTimeStr;
+          }
           
           return Card(
             margin: const EdgeInsets.only(bottom: 12),
@@ -306,7 +326,7 @@ class _BarberScreenState extends State<BarberScreen> with TickerProviderStateMix
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${dateTime.day}/${dateTime.month}/${dateTime.year} às ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}',
+                    formattedDateTime,
                     style: const TextStyle(color: AppColors.textSecondary),
                   ),
                   if (appointment['observacoes'] != null && appointment['observacoes'].toString().isNotEmpty) ...[

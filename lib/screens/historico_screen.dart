@@ -336,9 +336,19 @@ class _HistoricoScreenState extends State<HistoricoScreen>
 
   String _formatDate(String dateTimeStr) {
     try {
-      final dateTime = DateTime.parse(dateTimeStr);
-      final months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-      return '${dateTime.day} de ${months[dateTime.month - 1]}, ${dateTime.year}';
+      // Parse sem conversão de timezone
+      final parts = dateTimeStr.split(' ');
+      if (parts.length >= 2) {
+        final dateParts = parts[0].split('-');
+        if (dateParts.length == 3) {
+          final year = int.parse(dateParts[0]);
+          final month = int.parse(dateParts[1]);
+          final day = int.parse(dateParts[2]);
+          final months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+          return '$day de ${months[month - 1]}, $year';
+        }
+      }
+      return dateTimeStr;
     } catch (e) {
       return dateTimeStr;
     }
@@ -346,8 +356,17 @@ class _HistoricoScreenState extends State<HistoricoScreen>
   
   String _formatTime(String dateTimeStr) {
     try {
-      final dateTime = DateTime.parse(dateTimeStr);
-      return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+      // Parse sem conversão de timezone
+      final parts = dateTimeStr.split(' ');
+      if (parts.length >= 2) {
+        final timeParts = parts[1].split(':');
+        if (timeParts.length >= 2) {
+          final hour = timeParts[0].padLeft(2, '0');
+          final minute = timeParts[1].padLeft(2, '0');
+          return '$hour:$minute';
+        }
+      }
+      return dateTimeStr;
     } catch (e) {
       return dateTimeStr;
     }

@@ -270,16 +270,33 @@ class _ConfirmacaoScreenState extends State<ConfirmacaoScreen> {
                       await CreditService.addCredits(totalAmount, userId);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Erro ao criar agendamento. Valor reembolsado.'),
+                          content: Text('❌ Horário já ocupado!\n💰 Valor de R\$ ${totalAmount.toStringAsFixed(2)} foi reembolsado.\n📅 Escolha outro horário disponível.'),
                           backgroundColor: AppColors.error,
+                          duration: Duration(seconds: 5),
+                          action: SnackBarAction(
+                            label: 'OK',
+                            textColor: Colors.white,
+                            onPressed: () {},
+                          ),
                         ),
                       );
                     }
                   } catch (e) {
+                    // Reembolsar em caso de erro inesperado
+                    await CreditService.addCredits(totalAmount, userId);
+                    
+                    String errorMessage = 'Erro inesperado';
+                    if (e.toString().contains('horário')) {
+                      errorMessage = '❌ Conflito de horário detectado!\n💰 Valor reembolsado automaticamente.';
+                    } else {
+                      errorMessage = '❌ Erro no processamento\n💰 R\$ ${totalAmount.toStringAsFixed(2)} reembolsado';
+                    }
+                    
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Erro: $e'),
+                        content: Text(errorMessage),
                         backgroundColor: AppColors.error,
+                        duration: Duration(seconds: 5),
                       ),
                     );
                   }
@@ -495,6 +512,9 @@ class _ConfirmacaoScreenState extends State<ConfirmacaoScreen> {
         int.parse(widget.time.split(':')[1]),
       );
       
+      // Formatar para MySQL sem conversão de fuso horário
+      final mysqlDateTime = '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}:00';
+      
       // Primeiro, desabilitar o trigger
       await http.post(
         Uri.parse('http://localhost:3001/api/query'),
@@ -511,7 +531,7 @@ class _ConfirmacaoScreenState extends State<ConfirmacaoScreen> {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'sql': 'INSERT INTO agendamentos (id_cliente, id_barbeiro, id_servico, data_hora_agendamento, status) VALUES (?, ?, ?, ?, ?)',
-          'params': [userId, widget.barberId, widget.serviceId, dateTime.toIso8601String(), 'confirmado']
+          'params': [userId, widget.barberId, widget.serviceId, mysqlDateTime, 'confirmado']
         }),
       );
       
