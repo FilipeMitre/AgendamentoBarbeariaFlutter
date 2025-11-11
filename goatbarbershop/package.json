@@ -1,0 +1,9 @@
+{
+  "name": "goatbarbershop",
+  "scripts": {
+    "dev": "concurrently \"cd backend && npm run dev\" \"flutter run -d chrome\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
