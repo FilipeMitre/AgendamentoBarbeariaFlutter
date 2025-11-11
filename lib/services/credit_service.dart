@@ -7,7 +7,7 @@ class CreditService {
     if (userId == null) return 0.0;
     
     try {
-      final result = await dbHelper.query('SELECT saldo FROM carteiras WHERE id_cliente = ?', [userId]);
+      final result = await dbHelper.query('SELECT saldo FROM carteiras WHERE id_usuario = ? AND tipo_usuario = "cliente"', [userId]);
       
       if (result.isNotEmpty) {
         final credits = double.parse(result.first['saldo'].toString());
@@ -28,15 +28,15 @@ class CreditService {
     
     try {
       // Verificar se a carteira existe
-      final existingWallet = await dbHelper.query('SELECT id FROM carteiras WHERE id_cliente = ?', [userId]);
+      final existingWallet = await dbHelper.query('SELECT id FROM carteiras WHERE id_usuario = ? AND tipo_usuario = "cliente"', [userId]);
       
       if (existingWallet.isEmpty) {
         // Criar carteira se não existir
-        await dbHelper.executeQuery('INSERT INTO carteiras (id_cliente, saldo) VALUES (?, ?)', [userId, credits]);
+        await dbHelper.executeQuery('INSERT INTO carteiras (id_usuario, tipo_usuario, saldo) VALUES (?, "cliente", ?)', [userId, credits]);
         print('Carteira criada no MySQL para usuário $userId com saldo $credits');
       } else {
         // Atualizar saldo existente
-        await dbHelper.executeQuery('UPDATE carteiras SET saldo = ? WHERE id_cliente = ?', [credits, userId]);
+        await dbHelper.executeQuery('UPDATE carteiras SET saldo = ? WHERE id_usuario = ? AND tipo_usuario = "cliente"', [credits, userId]);
         print('Saldo atualizado no MySQL para usuário $userId: $credits');
       }
     } catch (e) {
@@ -54,15 +54,15 @@ class CreditService {
         final newBalance = currentCredits - amount;
         
         // Atualizar saldo no MySQL
-        await dbHelper.executeQuery('UPDATE carteiras SET saldo = ? WHERE id_cliente = ?', [newBalance, userId]);
+        await dbHelper.executeQuery('UPDATE carteiras SET saldo = ? WHERE id_usuario = ? AND tipo_usuario = "cliente"', [newBalance, userId]);
         
         // Registrar transação
-        final carteiraResult = await dbHelper.query('SELECT id FROM carteiras WHERE id_cliente = ?', [userId]);
+        final carteiraResult = await dbHelper.query('SELECT id FROM carteiras WHERE id_usuario = ? AND tipo_usuario = "cliente"', [userId]);
         if (carteiraResult.isNotEmpty) {
           final carteiraId = carteiraResult.first['id'];
           await dbHelper.executeQuery(
-            'INSERT INTO transacoes (id_carteira, valor, tipo) VALUES (?, ?, ?)',
-            [carteiraId, amount, 'debito']
+            'INSERT INTO transacoes (id_carteira, valor, tipo, categoria, descricao) VALUES (?, ?, ?, ?, ?)',
+            [carteiraId, amount, 'debito', 'pagamento_servico', 'Débito de créditos']
           );
         }
         
@@ -86,20 +86,20 @@ class CreditService {
       final newBalance = currentCredits + amount;
       
       // Verificar se carteira existe, senão criar
-      final existingWallet = await dbHelper.query('SELECT id FROM carteiras WHERE id_cliente = ?', [userId]);
+      final existingWallet = await dbHelper.query('SELECT id FROM carteiras WHERE id_usuario = ? AND tipo_usuario = "cliente"', [userId]);
       if (existingWallet.isEmpty) {
-        await dbHelper.executeQuery('INSERT INTO carteiras (id_cliente, saldo) VALUES (?, ?)', [userId, newBalance]);
+        await dbHelper.executeQuery('INSERT INTO carteiras (id_usuario, tipo_usuario, saldo) VALUES (?, "cliente", ?)', [userId, newBalance]);
       } else {
-        await dbHelper.executeQuery('UPDATE carteiras SET saldo = ? WHERE id_cliente = ?', [newBalance, userId]);
+        await dbHelper.executeQuery('UPDATE carteiras SET saldo = ? WHERE id_usuario = ? AND tipo_usuario = "cliente"', [newBalance, userId]);
       }
       
       // Registrar transação
-      final carteiraResult = await dbHelper.query('SELECT id FROM carteiras WHERE id_cliente = ?', [userId]);
+      final carteiraResult = await dbHelper.query('SELECT id FROM carteiras WHERE id_usuario = ? AND tipo_usuario = "cliente"', [userId]);
       if (carteiraResult.isNotEmpty) {
         final carteiraId = carteiraResult.first['id'];
         await dbHelper.executeQuery(
-          'INSERT INTO transacoes (id_carteira, valor, tipo) VALUES (?, ?, ?)',
-          [carteiraId, amount, 'credito']
+          'INSERT INTO transacoes (id_carteira, valor, tipo, categoria, descricao) VALUES (?, ?, ?, ?, ?)',
+          [carteiraId, amount, 'credito', 'deposito', 'Adição de créditos']
         );
       }
       

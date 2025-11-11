@@ -8,6 +8,7 @@ import '../screens/admin_screen.dart';
 import '../screens/barber_screen.dart';
 import '../screens/admin/admin_home_screen.dart';
 import '../screens/barber/barber_home_screen.dart';
+import '../screens/barber/barber_wallet_screen.dart';
 import '../services/token_manager.dart';
 
 class RoleBasedNavigation extends StatefulWidget {
@@ -84,7 +85,7 @@ class _RoleBasedNavigationState extends State<RoleBasedNavigation> {
         _screens = [
           const BarberHomeScreen(),
           const BarberScreen(),
-          const HistoricoScreen(),
+          const BarberWalletScreen(),
           const PerfilScreen(),
         ];
         _navItems = const [
@@ -99,9 +100,9 @@ class _RoleBasedNavigationState extends State<RoleBasedNavigation> {
             label: 'Barbeiro',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_month_outlined),
-            activeIcon: Icon(Icons.calendar_month),
-            label: 'Histórico',
+            icon: Icon(Icons.account_balance_wallet_outlined),
+            activeIcon: Icon(Icons.account_balance_wallet),
+            label: 'Carteira',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),

@@ -72,9 +72,11 @@ CREATE TABLE IF NOT EXISTS agendamentos (
 
 CREATE TABLE IF NOT EXISTS carteiras (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    id_cliente INT NOT NULL,
+    id_usuario INT NOT NULL,
+    tipo_usuario ENUM('cliente', 'barbeiro') NOT NULL,
     saldo DECIMAL(10, 2) DEFAULT 0.00,
-    FOREIGN KEY (id_cliente) REFERENCES usuarios(id) ON DELETE CASCADE ON UPDATE CASCADE
+    receita_servicos DECIMAL(10, 2) DEFAULT 0.00, -- Apenas para barbeiros
+    FOREIGN KEY (id_usuario) REFERENCES usuarios(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS transacoes (
@@ -82,6 +84,7 @@ CREATE TABLE IF NOT EXISTS transacoes (
     id_carteira INT NOT NULL,
     valor DECIMAL(10, 2) NOT NULL,
     tipo ENUM('credito', 'debito') NOT NULL,
+    categoria ENUM('deposito', 'receita_servico', 'pagamento_servico', 'saque') NOT NULL,
     descricao VARCHAR(255),
     id_agendamento INT,
     criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -210,12 +213,18 @@ INSERT INTO horarios (id_barbeiro, dia_da_semana, hora_inicio, hora_fim) VALUES
 INSERT INTO bloqueios (id_barbeiro, inicio_bloqueio, fim_bloqueio) VALUES
 (1, '2025-09-24 12:00:00', '2025-09-24 13:00:00');
 
-INSERT INTO carteiras (id_cliente, saldo) VALUES
-(3, 100.00),
-(4, 50.00);
+-- Carteiras dos clientes
+INSERT INTO carteiras (id_usuario, tipo_usuario, saldo) VALUES
+(3, 'cliente', 100.00),
+(4, 'cliente', 50.00);
 
-INSERT INTO transacoes (id_carteira, valor, tipo, id_agendamento) VALUES
-(1, 50.00, 'credito', NULL);
+-- Carteiras dos barbeiros
+INSERT INTO carteiras (id_usuario, tipo_usuario, saldo, receita_servicos) VALUES
+(1, 'barbeiro', 0.00, 0.00),
+(2, 'barbeiro', 0.00, 0.00);
+
+INSERT INTO transacoes (id_carteira, valor, tipo, categoria, descricao, id_agendamento) VALUES
+(1, 50.00, 'credito', 'deposito', 'Depósito inicial', NULL);
 
 -- Agendamentos com horários corretos (sem conversão UTC)
 INSERT INTO agendamentos (id_cliente, id_barbeiro, id_servico, data_hora_agendamento, status)
@@ -223,11 +232,208 @@ VALUES (3, 1, 1, '2025-09-25 10:00:00', 'confirmado');
 
 INSERT INTO agendamentos (id_cliente, id_barbeiro, id_servico, data_hora_agendamento, status)
 VALUES (4, 2, 4, '2025-09-26 15:30:00', 'confirmado'),
-       (3, 1, 2, '2025-09-24 11:00:00', 'concluido'),
-       (3, 1, 3, '2025-09-27 16:00:00', 'cancelado');
+       (3, 1, 2, '2025-09-24 11:00:00', 'concluido');
 
-INSERT INTO transacoes (id_carteira, valor, tipo, id_agendamento)
-VALUES (1, 25.00, 'debito', 3);
+-- ============================================
+-- STORED PROCEDURES PARA CARTEIRA DO BARBEIRO
+-- ============================================
+
+DELIMITER //
+
+-- Procedure para depósito na carteira do barbeiro
+CREATE PROCEDURE DepositoBarbeiro(
+    IN p_id_barbeiro INT,
+    IN p_valor DECIMAL(10,2),
+    IN p_descricao VARCHAR(255)
+)
+BEGIN
+    DECLARE v_id_carteira INT;
+    
+    -- Buscar carteira do barbeiro
+    SELECT id INTO v_id_carteira 
+    FROM carteiras 
+    WHERE id_usuario = p_id_barbeiro AND tipo_usuario = 'barbeiro';
+    
+    IF v_id_carteira IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Carteira do barbeiro não encontrada';
+    END IF;
+    
+    -- Atualizar saldo (apenas saldo, não receita)
+    UPDATE carteiras 
+    SET saldo = saldo + p_valor 
+    WHERE id = v_id_carteira;
+    
+    -- Registrar transação
+    INSERT INTO transacoes (id_carteira, valor, tipo, categoria, descricao)
+    VALUES (v_id_carteira, p_valor, 'credito', 'deposito', p_descricao);
+END//
+
+-- Procedure para registrar receita de serviço
+CREATE PROCEDURE ReceitaServicoBarbeiro(
+    IN p_id_agendamento INT
+)
+BEGIN
+    DECLARE v_id_barbeiro INT;
+    DECLARE v_id_carteira INT;
+    DECLARE v_valor_servico DECIMAL(10,2);
+    DECLARE v_nome_servico VARCHAR(255);
+    
+    -- Buscar dados do agendamento
+    SELECT a.id_barbeiro, s.preco_creditos, s.nome
+    INTO v_id_barbeiro, v_valor_servico, v_nome_servico
+    FROM agendamentos a
+    JOIN servicos s ON a.id_servico = s.id
+    WHERE a.id = p_id_agendamento AND a.status = 'concluido';
+    
+    IF v_id_barbeiro IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Agendamento não encontrado ou não concluído';
+    END IF;
+    
+    -- Buscar carteira do barbeiro
+    SELECT id INTO v_id_carteira 
+    FROM carteiras 
+    WHERE id_usuario = v_id_barbeiro AND tipo_usuario = 'barbeiro';
+    
+    -- Atualizar receita de serviços (separado do saldo)
+    UPDATE carteiras 
+    SET receita_servicos = receita_servicos + v_valor_servico 
+    WHERE id = v_id_carteira;
+    
+    -- Registrar transação
+    INSERT INTO transacoes (id_carteira, valor, tipo, categoria, descricao, id_agendamento)
+    VALUES (v_id_carteira, v_valor_servico, 'credito', 'receita_servico', 
+            CONCAT('Receita do serviço: ', v_nome_servico), p_id_agendamento);
+END//
+
+-- Procedure para saque da carteira do barbeiro
+CREATE PROCEDURE SaqueBarbeiro(
+    IN p_id_barbeiro INT,
+    IN p_valor DECIMAL(10,2),
+    IN p_tipo_saque ENUM('saldo', 'receita', 'ambos'),
+    IN p_descricao VARCHAR(255)
+)
+BEGIN
+    DECLARE v_id_carteira INT;
+    DECLARE v_saldo_atual DECIMAL(10,2);
+    DECLARE v_receita_atual DECIMAL(10,2);
+    DECLARE v_valor_saldo DECIMAL(10,2) DEFAULT 0;
+    DECLARE v_valor_receita DECIMAL(10,2) DEFAULT 0;
+    
+    -- Buscar carteira do barbeiro
+    SELECT id, saldo, receita_servicos 
+    INTO v_id_carteira, v_saldo_atual, v_receita_atual
+    FROM carteiras 
+    WHERE id_usuario = p_id_barbeiro AND tipo_usuario = 'barbeiro';
+    
+    IF v_id_carteira IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Carteira do barbeiro não encontrada';
+    END IF;
+    
+    -- Calcular valores do saque baseado no tipo
+    IF p_tipo_saque = 'saldo' THEN
+        IF v_saldo_atual < p_valor THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Saldo insuficiente';
+        END IF;
+        SET v_valor_saldo = p_valor;
+    ELSEIF p_tipo_saque = 'receita' THEN
+        IF v_receita_atual < p_valor THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Receita insuficiente';
+        END IF;
+        SET v_valor_receita = p_valor;
+    ELSEIF p_tipo_saque = 'ambos' THEN
+        IF (v_saldo_atual + v_receita_atual) < p_valor THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Fundos insuficientes';
+        END IF;
+        
+        -- Primeiro usar receita, depois saldo
+        IF v_receita_atual >= p_valor THEN
+            SET v_valor_receita = p_valor;
+        ELSE
+            SET v_valor_receita = v_receita_atual;
+            SET v_valor_saldo = p_valor - v_receita_atual;
+        END IF;
+    END IF;
+    
+    -- Atualizar carteira
+    UPDATE carteiras 
+    SET saldo = saldo - v_valor_saldo,
+        receita_servicos = receita_servicos - v_valor_receita
+    WHERE id = v_id_carteira;
+    
+    -- Registrar transação
+    INSERT INTO transacoes (id_carteira, valor, tipo, categoria, descricao)
+    VALUES (v_id_carteira, p_valor, 'debito', 'saque', p_descricao);
+END//
+
+-- Procedure para consultar carteira do barbeiro
+CREATE PROCEDURE ConsultarCarteiraBarbeiro(
+    IN p_id_barbeiro INT
+)
+BEGIN
+    SELECT 
+        c.saldo,
+        c.receita_servicos,
+        (c.saldo + c.receita_servicos) as total_disponivel,
+        u.nome as nome_barbeiro
+    FROM carteiras c
+    JOIN usuarios u ON c.id_usuario = u.id
+    WHERE c.id_usuario = p_id_barbeiro AND c.tipo_usuario = 'barbeiro';
+END//
+
+DELIMITER ;
+
+-- ============================================
+-- TRIGGER PARA RECEITA AUTOMÁTICA
+-- ============================================
+
+DELIMITER //
+
+-- Trigger para registrar receita automaticamente quando agendamento for concluído
+CREATE TRIGGER tr_receita_servico_concluido
+AFTER UPDATE ON agendamentos
+FOR EACH ROW
+BEGIN
+    -- Se o status mudou para 'concluido'
+    IF NEW.status = 'concluido' AND OLD.status != 'concluido' THEN
+        CALL ReceitaServicoBarbeiro(NEW.id);
+    END IF;
+END//
+
+DELIMITER ;
+
+-- ============================================
+-- VIEWS ÚTEIS PARA RELATÓRIOS
+-- ============================================
+
+-- View para relatório de receitas dos barbeiros
+CREATE VIEW vw_receitas_barbeiros AS
+SELECT 
+    u.id,
+    u.nome as barbeiro,
+    c.saldo,
+    c.receita_servicos,
+    (c.saldo + c.receita_servicos) as total_carteira,
+    COUNT(DISTINCT a.id) as total_servicos_concluidos
+FROM usuarios u
+JOIN carteiras c ON u.id = c.id_usuario AND c.tipo_usuario = 'barbeiro'
+LEFT JOIN agendamentos a ON u.id = a.id_barbeiro AND a.status = 'concluido'
+WHERE u.papel = 'barbeiro'
+GROUP BY u.id, u.nome, c.saldo, c.receita_servicos;
+
+-- ============================================
+-- DADOS DE TESTE
+-- ============================================
+
+-- Adicionar depósitos de exemplo
+CALL DepositoBarbeiro(1, 150.00, 'Depósito inicial - João');
+CALL DepositoBarbeiro(2, 200.00, 'Depósito inicial - Maria');
+
+-- Agendamento adicional
+INSERT INTO agendamentos (id_cliente, id_barbeiro, id_servico, data_hora_agendamento, status)
+VALUES (3, 1, 3, '2025-09-27 16:00:00', 'cancelado');
+
+INSERT INTO transacoes (id_carteira, valor, tipo, categoria, descricao, id_agendamento)
+VALUES (1, 25.00, 'debito', 'pagamento_servico', 'Pagamento serviço', 3);
 
 INSERT INTO avaliacoes (id_cliente, id_barbeiro, id_agendamento, nota, comentario) VALUES
 (3, 1, 1, 5, 'Excelente corte, muito atencioso!'),
@@ -307,7 +513,8 @@ SELECT
 FROM
     carteiras c
 JOIN
-    usuarios u ON c.id_cliente = u.id;
+    usuarios u ON c.id_usuario = u.id
+WHERE c.tipo_usuario = 'cliente';
 
 CREATE VIEW vw_historico_cliente AS
 SELECT
@@ -442,15 +649,15 @@ BEGIN
         
         SELECT id INTO v_id_carteira
         FROM carteiras
-        WHERE id_cliente = NEW.id_cliente;
+        WHERE id_usuario = NEW.id_cliente AND tipo_usuario = 'cliente';
         
         IF v_id_carteira IS NOT NULL THEN
             UPDATE carteiras
             SET saldo = saldo + v_preco_servico
             WHERE id = v_id_carteira;
             
-            INSERT INTO transacoes (id_carteira, valor, tipo, id_agendamento, descricao)
-            VALUES (v_id_carteira, v_preco_servico, 'credito', NEW.id, 'Reembolso por cancelamento');
+            INSERT INTO transacoes (id_carteira, valor, tipo, categoria, descricao, id_agendamento)
+            VALUES (v_id_carteira, v_preco_servico, 'credito', 'deposito', 'Reembolso por cancelamento', NEW.id);
         END IF;
     END IF;
 END$$
@@ -573,13 +780,13 @@ BEGIN
         WHERE id_agendamento = NEW.id AND reembolsada = FALSE;
         SELECT id INTO v_id_carteira
         FROM carteiras
-        WHERE id_cliente = NEW.id_cliente;
+        WHERE id_usuario = NEW.id_cliente AND tipo_usuario = 'cliente';
         IF v_taxa_garantia IS NOT NULL THEN
             UPDATE carteiras
             SET saldo = saldo + v_taxa_garantia
             WHERE id = v_id_carteira;
-            INSERT INTO transacoes (id_carteira, valor, tipo, id_agendamento)
-            VALUES (v_id_carteira, v_taxa_garantia, 'credito', NEW.id);
+            INSERT INTO transacoes (id_carteira, valor, tipo, categoria, descricao, id_agendamento)
+            VALUES (v_id_carteira, v_taxa_garantia, 'credito', 'deposito', 'Reembolso taxa garantia', NEW.id);
             UPDATE taxas_agendamento
             SET reembolsada = TRUE, data_reembolso = NOW()
             WHERE id_agendamento = NEW.id;
@@ -611,12 +818,12 @@ BEGIN
     DECLARE v_id_carteira INT;
     SELECT id INTO v_id_carteira
     FROM carteiras
-    WHERE id_cliente = NEW.id_cliente;
+    WHERE id_usuario = NEW.id_cliente AND tipo_usuario = 'cliente';
     UPDATE carteiras
     SET saldo = saldo - NEW.preco_total
     WHERE id = v_id_carteira;
-    INSERT INTO transacoes (id_carteira, valor, tipo, id_agendamento)
-    VALUES (v_id_carteira, NEW.preco_total, 'debito', NEW.id_agendamento);
+    INSERT INTO transacoes (id_carteira, valor, tipo, categoria, descricao, id_agendamento)
+    VALUES (v_id_carteira, NEW.preco_total, 'debito', 'pagamento_servico', 'Compra de produto', NEW.id_agendamento);
 END$$
 
 DELIMITER ;
@@ -646,7 +853,7 @@ BEGIN
     SET v_taxa_garantia = v_preco_servico * 0.5;
     SELECT saldo INTO v_saldo_cliente
     FROM carteiras
-    WHERE id_cliente = p_id_cliente;
+    WHERE id_usuario = p_id_cliente AND tipo_usuario = 'cliente';
     SELECT 1 INTO v_horario_ocupado
     FROM agendamentos
     WHERE id_barbeiro = p_id_barbeiro
@@ -694,7 +901,7 @@ BEGIN
     SET v_preco_total = v_preco_unitario * p_quantidade;
     SELECT saldo INTO v_saldo_cliente
     FROM carteiras
-    WHERE id_cliente = p_id_cliente;
+    WHERE id_usuario = p_id_cliente AND tipo_usuario = 'cliente';
     IF v_saldo_cliente < v_preco_total THEN
         ROLLBACK;
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Erro: Saldo insuficiente.';

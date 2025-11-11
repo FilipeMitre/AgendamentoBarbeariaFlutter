@@ -268,6 +268,32 @@ class _BarberHomeScreenState extends State<BarberHomeScreen> {
                     ],
                   ),
 
+                  SizedBox(height: 16),
+
+                  // Botão da Carteira
+                  Container(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Acesse sua carteira na aba "Carteira" abaixo'),
+                            backgroundColor: AppColors.primary,
+                          ),
+                        );
+                      },
+                      icon: Icon(Icons.account_balance_wallet, size: 20),
+                      label: Text('Minha Carteira'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+
                   SizedBox(height: 32),
 
                   // Agendamentos de hoje
