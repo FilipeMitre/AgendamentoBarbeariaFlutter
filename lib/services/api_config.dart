@@ -1,5 +1,5 @@
 class ApiConfig {
-  static const String baseUrl = 'https://api.goatbarbershop.com.br';
+  static const String baseUrl = 'http://localhost:3001/api';
   static const String apiVersion = '/v1';
 
   // Endpoints
