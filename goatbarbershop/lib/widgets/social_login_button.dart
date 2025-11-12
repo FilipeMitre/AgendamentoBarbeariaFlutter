@@ -29,18 +29,10 @@ class SocialLoginButton extends StatelessWidget {
           onTap: onPressed,
           borderRadius: BorderRadius.circular(12),
           child: Center(
-            child: Image.asset(
-              icon,
-              width: 24,
-              height: 24,
-              errorBuilder: (context, error, stackTrace) {
-                // Fallback caso a imagem não exista
-                return Icon(
-                  _getIconFromPath(icon),
-                  color: Colors.white,
-                  size: 24,
-                );
-              },
+            child: Icon(
+              _getIconFromPath(icon),
+              color: Colors.white,
+              size: 24,
             ),
           ),
         ),
@@ -49,9 +41,9 @@ class SocialLoginButton extends StatelessWidget {
   }
 
   IconData _getIconFromPath(String path) {
-    if (path.contains('google')) return Icons.g_mobiledata;
-    if (path.contains('apple')) return Icons.apple;
-    if (path.contains('facebook')) return Icons.facebook;
+    if (path.contains('google')) return Icons.account_circle; // Representa conta Google
+    if (path.contains('apple')) return Icons.apple; // Ícone Apple nativo
+    if (path.contains('facebook')) return Icons.facebook; // Ícone Facebook nativo
     return Icons.login;
   }
 }

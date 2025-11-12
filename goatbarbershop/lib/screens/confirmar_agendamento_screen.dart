@@ -74,9 +74,8 @@ class _ConfirmarAgendamentoScreenState
         clienteId: authProvider.user!.id!,
         barbeiroId: widget.barbeiro.id, // ID do barbeiro selecionado
         servicoId: widget.pacote == 'Completo' ? 1 : 2,
-        dataAgendamento: widget.data.toIso8601String(),
+        dataAgendamento: DateFormat('yyyy-MM-dd').format(widget.data),
         horario: widget.horario,
-        valorServico: _valorTotal,
         token: authProvider.token!,
         produtos: _produtosSelecionados.isNotEmpty ? _produtosSelecionados : null,
       );

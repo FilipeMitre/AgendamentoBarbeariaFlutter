@@ -36,9 +36,9 @@ const formatDateForMySQL = (date) => {
 };
 
 // Calcular comissão
-const calcularComissao = (valorServico) => {
-  const taxaComissao = parseFloat(process.env.TAXA_COMISSAO) || 5;
-  return (valorServico * taxaComissao) / 100;
+const calcularComissao = (valorServico, taxaComissao = null) => {
+  const taxa = taxaComissao || parseFloat(process.env.TAXA_COMISSAO) || 5;
+  return (valorServico * taxa) / 100;
 };
 
 // Calcular valor do barbeiro

@@ -8,4 +8,12 @@ router.get('/:usuarioId/ativos', authMiddleware, agendamentoController.getAgenda
 router.get('/:usuarioId/historico', authMiddleware, agendamentoController.getHistoricoAgendamentos);
 router.put('/:agendamentoId/cancelar', authMiddleware, agendamentoController.cancelarAgendamento);
 
+// Rotas para horários em tempo real
+router.get('/horarios-disponiveis', agendamentoController.getHorariosDisponiveis);
+router.get('/dias-disponiveis', agendamentoController.getDiasDisponiveis);
+router.get('/verificar-disponibilidade', agendamentoController.verificarDisponibilidade);
+
+// Endpoint de teste
+
+
 module.exports = router;

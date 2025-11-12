@@ -121,13 +121,10 @@ class ApiService {
     required int servicoId,
     required String dataAgendamento,
     required String horario,
-    required double valorServico,
     required String token,
     Map<String, double>? produtos,
   }) async {
     try {
-      print('DEBUG: Token sendo enviado: ${token.substring(0, 10)}...');
-      
       final response = await http.post(
         Uri.parse('$baseUrl/agendamentos'),
         headers: {
@@ -135,22 +132,16 @@ class ApiService {
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
-          'cliente_id': clienteId,
           'barbeiro_id': barbeiroId,
           'servico_id': servicoId,
           'data_agendamento': dataAgendamento,
           'horario': horario,
-          'valor_servico': valorServico,
           'produtos': produtos,
         }),
       );
-
-      print('DEBUG: Status da resposta: ${response.statusCode}');
-      print('DEBUG: Corpo da resposta: ${response.body}');
       
       return jsonDecode(response.body);
     } catch (e) {
-      print('DEBUG: Erro na requisição: $e');
       return {
         'success': false,
         'message': 'Erro de conexão com o servidor',
@@ -166,6 +157,27 @@ class ApiService {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro de conexão com o servidor',
+      };
+    }
+  }
+
+  // Verificar se horário ainda está disponível antes de confirmar
+  static Future<Map<String, dynamic>> verificarDisponibilidade({
+    required int barbeiroId,
+    required String dataAgendamento,
+    required String horario,
+  }) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/agendamentos/verificar-disponibilidade?barbeiro_id=$barbeiroId&data=$dataAgendamento&horario=$horario'),
+        headers: {'Content-Type': 'application/json'},
       );
 
       return jsonDecode(response.body);
@@ -234,6 +246,44 @@ class ApiService {
       final dataFormatada = '${data.year}-${data.month.toString().padLeft(2, '0')}-${data.day.toString().padLeft(2, '0')}';
       final response = await http.get(
         Uri.parse('$baseUrl/barbeiro/$barbeiroId/agendamentos?data=$dataFormatada'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro de conexão com o servidor',
+      };
+    }
+  }
+
+  // Obter horários disponíveis em tempo real
+  static Future<Map<String, dynamic>> getHorariosDisponiveis(
+    int barbeiroId,
+    DateTime data,
+  ) async {
+    try {
+      final dataFormatada = DateFormat('yyyy-MM-dd').format(data);
+      final response = await http.get(
+        Uri.parse('$baseUrl/agendamentos/horarios-disponiveis?barbeiro_id=$barbeiroId&data=$dataFormatada'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro de conexão com o servidor',
+      };
+    }
+  }
+
+  // Obter dias disponíveis (próximos 30 dias)
+  static Future<Map<String, dynamic>> getDiasDisponiveis(int barbeiroId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/agendamentos/dias-disponiveis?barbeiro_id=$barbeiroId'),
         headers: {'Content-Type': 'application/json'},
       );
 

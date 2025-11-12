@@ -1,0 +1,16 @@
+Ícones necessários:
+- google.png
+- apple.png  
+- facebook.png
+
+Você pode baixar esses ícones de:
+- Google: https://developers.google.com/identity/branding-guidelines
+- Apple: https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple
+- Facebook: https://developers.facebook.com/docs/facebook-login/userexperience/
+
+Ou usar ícones genéricos de sites como:
+- https://icons8.com
+- https://www.flaticon.com
+- https://feathericons.com
+
+Tamanho recomendado: 24x24px ou 48x48px

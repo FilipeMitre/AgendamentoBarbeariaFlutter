@@ -6,6 +6,9 @@ exports.criarAgendamento = async (req, res) => {
   const connection = await db.getConnection();
 
   try {
+    console.log('DEBUG: Dados recebidos:', req.body);
+    console.log('DEBUG: Cliente ID:', req.userId);
+    
     const {
       barbeiro_id,
       servico_id,
@@ -44,25 +47,36 @@ exports.criarAgendamento = async (req, res) => {
     const [config] = await connection.query(
         "SELECT valor FROM configuracoes_sistema WHERE chave = 'taxa_comissao_servico' LIMIT 1"
     );
-    const taxaComissao = config.length > 0 ? parseFloat(config[0].valor) : 0.10; // Default 10%
+    const taxaComissao = config.length > 0 ? parseFloat(config[0].valor) : 5.0; // Default 5%
+
+    console.log('DEBUG: Taxa comissão:', taxaComissao);
+    console.log('DEBUG: Valor serviço:', valorServico);
 
     // Calcular comissão e valor para o barbeiro
     const valorComissao = calcularComissao(valorServico, taxaComissao);
     const valorBarbeiro = calcularValorBarbeiro(valorServico, valorComissao);
+    
+    console.log('DEBUG: Valor comissão:', valorComissao);
+    console.log('DEBUG: Valor barbeiro:', valorBarbeiro);
 
 
-    // Buscar carteira do cliente
-    const [carteiras] = await connection.query(
+    // Buscar ou criar carteira do cliente
+    let [carteiras] = await connection.query(
       'SELECT id, saldo FROM carteiras WHERE usuario_id = ? FOR UPDATE',
       [cliente_id]
     );
 
     if (carteiras.length === 0) {
-      await connection.rollback();
-      return res.status(404).json({
-        success: false,
-        message: 'Carteira não encontrada'
-      });
+      // Criar carteira se não existir
+      await connection.query(
+        'INSERT INTO carteiras (usuario_id, saldo) VALUES (?, 0.00)',
+        [cliente_id]
+      );
+      
+      [carteiras] = await connection.query(
+        'SELECT id, saldo FROM carteiras WHERE usuario_id = ? FOR UPDATE',
+        [cliente_id]
+      );
     }
 
     const carteira = carteiras[0];
@@ -76,6 +90,18 @@ exports.criarAgendamento = async (req, res) => {
         message: 'Saldo insuficiente',
         saldo_atual: saldoAtual,
         valor_necessario: valorServico
+      });
+    }
+
+    // Verificar se não é agendamento no passado
+    const dataHoraAgendamento = new Date(data_agendamento + ' ' + horario);
+    const agora = new Date();
+    
+    if (dataHoraAgendamento <= agora) {
+      await connection.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Não é possível agendar para horários passados'
       });
     }
 
@@ -254,6 +280,200 @@ exports.getHistoricoAgendamentos = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Erro ao obter histórico',
+      error: error.message
+    });
+  }
+};
+
+// Obter horários disponíveis para um barbeiro em uma data específica
+exports.getHorariosDisponiveis = async (req, res) => {
+  try {
+    const { barbeiro_id, data } = req.query;
+
+    if (!barbeiro_id || !data) {
+      return res.status(400).json({
+        success: false,
+        message: 'Barbeiro e data são obrigatórios'
+      });
+    }
+
+    // Verificar se a data não é no passado
+    const dataAgendamento = new Date(data);
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    
+    if (dataAgendamento < hoje) {
+      return res.json({
+        success: true,
+        horarios: []
+      });
+    }
+
+    // Horários padrão da barbearia (8h às 18h)
+    const horariosBase = [
+      '08:00', '09:00', '10:00', '11:00', '12:00',
+      '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'
+    ];
+
+    // Buscar agendamentos já marcados
+    const [agendamentosOcupados] = await db.query(
+      `SELECT horario FROM agendamentos 
+       WHERE barbeiro_id = ? 
+       AND data_agendamento = ? 
+       AND status NOT IN ('cancelado')`,
+      [barbeiro_id, data]
+    );
+
+    const horariosOcupados = agendamentosOcupados.map(a => a.horario);
+
+    // Se for hoje, filtrar horários que já passaram
+    let horariosDisponiveis = horariosBase;
+    if (dataAgendamento.toDateString() === hoje.toDateString()) {
+      const agora = new Date();
+      const horaAtual = agora.getHours();
+      const minutoAtual = agora.getMinutes();
+      
+      horariosDisponiveis = horariosBase.filter(horario => {
+        const [hora, minuto] = horario.split(':').map(Number);
+        return hora > horaAtual || (hora === horaAtual && minuto > minutoAtual + 30); // 30min de antecedência
+      });
+    }
+
+    // Remover horários ocupados
+    horariosDisponiveis = horariosDisponiveis.filter(h => !horariosOcupados.includes(h));
+
+    res.json({
+      success: true,
+      horarios: horariosDisponiveis
+    });
+
+  } catch (error) {
+    console.error('Erro ao obter horários disponíveis:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao obter horários disponíveis',
+      error: error.message
+    });
+  }
+};
+
+// Obter dias disponíveis (próximos 30 dias úteis)
+exports.getDiasDisponiveis = async (req, res) => {
+  try {
+    const { barbeiro_id } = req.query;
+
+    if (!barbeiro_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID do barbeiro é obrigatório'
+      });
+    }
+
+    const diasDisponiveis = [];
+    const hoje = new Date();
+    
+    // Gerar próximos 30 dias (excluindo domingos)
+    for (let i = 0; i < 45; i++) {
+      const data = new Date(hoje);
+      data.setDate(hoje.getDate() + i);
+      
+      // Pular domingos (0 = domingo)
+      if (data.getDay() === 0) continue;
+      
+      // Verificar se tem pelo menos um horário disponível
+      const dataFormatada = data.toISOString().split('T')[0];
+      const [agendamentos] = await db.query(
+        `SELECT COUNT(*) as total FROM agendamentos 
+         WHERE barbeiro_id = ? 
+         AND data_agendamento = ? 
+         AND status NOT IN ('cancelado')`,
+        [barbeiro_id, dataFormatada]
+      );
+
+      const totalAgendamentos = agendamentos[0].total;
+      const horariosBase = 11; // 8h às 18h = 11 horários
+      
+      // Se for hoje, considerar apenas horários futuros
+      let horariosDisponiveis = horariosBase;
+      if (data.toDateString() === hoje.toDateString()) {
+        const agora = new Date();
+        const horaAtual = agora.getHours();
+        horariosDisponiveis = Math.max(0, 18 - Math.max(8, horaAtual + 1));
+      }
+
+      if (totalAgendamentos < horariosDisponiveis) {
+        diasDisponiveis.push({
+          data: dataFormatada,
+          dia_semana: data.getDay(),
+          horarios_livres: horariosDisponiveis - totalAgendamentos
+        });
+      }
+
+      if (diasDisponiveis.length >= 30) break;
+    }
+
+    res.json({
+      success: true,
+      dias: diasDisponiveis
+    });
+
+  } catch (error) {
+    console.error('Erro ao obter dias disponíveis:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao obter dias disponíveis',
+      error: error.message
+    });
+  }
+};
+
+// Verificar disponibilidade de um horário específico
+exports.verificarDisponibilidade = async (req, res) => {
+  try {
+    const { barbeiro_id, data, horario } = req.query;
+
+    if (!barbeiro_id || !data || !horario) {
+      return res.status(400).json({
+        success: false,
+        message: 'Barbeiro, data e horário são obrigatórios'
+      });
+    }
+
+    // Verificar se não é no passado
+    const dataAgendamento = new Date(data + ' ' + horario);
+    const agora = new Date();
+    
+    if (dataAgendamento <= agora) {
+      return res.json({
+        success: false,
+        disponivel: false,
+        message: 'Horário no passado'
+      });
+    }
+
+    // Verificar se já está ocupado
+    const [agendamentos] = await db.query(
+      `SELECT id FROM agendamentos 
+       WHERE barbeiro_id = ? 
+       AND data_agendamento = ? 
+       AND horario = ? 
+       AND status NOT IN ('cancelado')`,
+      [barbeiro_id, data, horario]
+    );
+
+    const disponivel = agendamentos.length === 0;
+
+    res.json({
+      success: true,
+      disponivel,
+      message: disponivel ? 'Horário disponível' : 'Horário ocupado'
+    });
+
+  } catch (error) {
+    console.error('Erro ao verificar disponibilidade:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao verificar disponibilidade',
       error: error.message
     });
   }
