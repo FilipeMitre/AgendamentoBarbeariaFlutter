@@ -244,14 +244,21 @@ class _ProdutosScreenState extends State<ProdutosScreen> {
                             padding: const EdgeInsets.only(left: 16),
                             child: ElevatedButton(
                               onPressed: () {
-                                // TODO: Finalizar compra
+                                // Retornar produtos selecionados
+                                Map<String, double> produtosSelecionados = {};
+                                _carrinho.forEach((produtoId, quantidade) {
+                                  final produto = _produtos.firstWhere((p) => p.id == produtoId);
+                                  produtosSelecionados[produto.nome] = produto.preco * quantidade;
+                                });
+                                
+                                Navigator.pop(context, produtosSelecionados);
+                                
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text('Produtos adicionados ao agendamento!'),
                                     backgroundColor: Color(0xFF4CAF50),
                                   ),
                                 );
-                                Navigator.pop(context);
                               },
                               style: ElevatedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(vertical: 16),

@@ -23,12 +23,12 @@ class CarteiraProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> carregarSaldo(int usuarioId) async {
+  Future<bool> carregarSaldo(int usuarioId, String token) async {
     try {
       setLoading(true);
       setError(null);
 
-      final response = await ApiService.getSaldo(usuarioId);
+      final response = await ApiService.getSaldo(usuarioId, token);
 
       if (response['success']) {
         _saldo = (response['saldo'] ?? 0).toDouble();
@@ -46,12 +46,12 @@ class CarteiraProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> recarregar(int usuarioId, double valor) async {
+  Future<bool> recarregar(int usuarioId, double valor, String token) async {
     try {
       setLoading(true);
       setError(null);
 
-      final response = await ApiService.recarregarCarteira(usuarioId, valor);
+      final response = await ApiService.recarregarCarteira(usuarioId, valor, token);
 
       if (response['success']) {
         _saldo = (response['saldo_atual'] ?? _saldo).toDouble();
@@ -69,12 +69,12 @@ class CarteiraProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> carregarTransacoes(int usuarioId) async {
+  Future<bool> carregarTransacoes(int usuarioId, String token) async {
     try {
       setLoading(true);
       setError(null);
 
-      final response = await ApiService.getTransacoes(usuarioId);
+      final response = await ApiService.getTransacoes(usuarioId, token);
 
       if (response['success']) {
         _transacoes = (response['transacoes'] as List)

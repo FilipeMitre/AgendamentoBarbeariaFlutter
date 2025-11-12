@@ -3,7 +3,10 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/barbeiro_model.dart';
 import '../providers/auth_provider.dart';
+import '../services/api_service.dart';
 import 'recomendacoes_screen.dart';
+import 'produtos_screen.dart';
+import 'bebidas_screen.dart';
 
 class ConfirmarAgendamentoScreen extends StatefulWidget {
   final BarbeiroModel barbeiro;
@@ -29,39 +32,93 @@ class ConfirmarAgendamentoScreen extends StatefulWidget {
 class _ConfirmarAgendamentoScreenState
     extends State<ConfirmarAgendamentoScreen> {
   bool _isLoading = false;
+  Map<String, double> _produtosSelecionados = {}; // nome: valor
 
   // Valores mockados - virão do banco
   final double _valorCabelo = 40.00;
   final double _valorBarba = 20.00;
-  final double _valorBebidas = 22.98;
+
+  double get _valorProdutos {
+    return _produtosSelecionados.values.fold(0.0, (sum, valor) => sum + valor);
+  }
 
   double get _valorTotal {
-    if (widget.pacote == 'Completo') {
-      return _valorCabelo + _valorBarba + _valorBebidas;
-    }
-    return _valorCabelo + _valorBebidas;
+    double valorServicos = widget.pacote == 'Completo' 
+        ? _valorCabelo + _valorBarba 
+        : _valorCabelo;
+    return valorServicos + _valorProdutos;
   }
 
   Future<void> _confirmarAgendamento() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    if (authProvider.user?.id == null || authProvider.token == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro: ${authProvider.user?.id == null ? 'Usuário' : 'Token'} não encontrado'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    
+    print('DEBUG: User ID: ${authProvider.user!.id}');
+    print('DEBUG: Token exists: ${authProvider.token != null}');
+
     setState(() {
       _isLoading = true;
     });
 
-    // Simular chamada API
-    await Future.delayed(const Duration(seconds: 2));
-
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-
-      // Navegar para recomendações
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const RecomendacoesScreen(),
-        ),
+    try {
+      final response = await ApiService.criarAgendamento(
+        clienteId: authProvider.user!.id!,
+        barbeiroId: widget.barbeiro.id, // ID do barbeiro selecionado
+        servicoId: widget.pacote == 'Completo' ? 1 : 2,
+        dataAgendamento: widget.data.toIso8601String(),
+        horario: widget.horario,
+        valorServico: _valorTotal,
+        token: authProvider.token!,
+        produtos: _produtosSelecionados.isNotEmpty ? _produtosSelecionados : null,
       );
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+
+        if (response['success'] == true) {
+          // Voltar para home com mensagem de sucesso
+          Navigator.popUntil(context, (route) => route.isFirst);
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Agendamento realizado com sucesso!'),
+              backgroundColor: Color(0xFF4CAF50),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response['message'] ?? 'Erro ao criar agendamento'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Erro de conexão com o servidor'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -133,6 +190,7 @@ class _ConfirmarAgendamentoScreenState
                 color: Colors.purple,
                 title: 'Recomendações',
                 subtitle: 'Adicione produtos e bebidas',
+                isRecommendation: true,
               ),
 
               const SizedBox(height: 32),
@@ -152,8 +210,16 @@ class _ConfirmarAgendamentoScreenState
                       const SizedBox(height: 12),
                       _buildValorRow('Barba', _valorBarba),
                     ],
-                    const SizedBox(height: 12),
-                    _buildValorRow('Bebidas', _valorBebidas),
+                    // Mostrar produtos selecionados
+                    if (_produtosSelecionados.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      ..._produtosSelecionados.entries.map((entry) => 
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _buildValorRow(entry.key, entry.value),
+                        ),
+                      ).toList(),
+                    ],
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16),
                       child: Divider(color: Color(0xFF333333), height: 1),
@@ -218,6 +284,7 @@ class _ConfirmarAgendamentoScreenState
     required Color color,
     required String title,
     required String subtitle,
+    bool isRecommendation = false,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -262,10 +329,19 @@ class _ConfirmarAgendamentoScreenState
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.edit, color: Color(0xFFFFB84D), size: 20),
+            icon: Icon(
+              isRecommendation ? Icons.add_shopping_cart : Icons.edit,
+              color: const Color(0xFFFFB84D),
+              size: 20,
+            ),
             onPressed: () {
-              // Voltar para editar
-              Navigator.pop(context);
+              if (isRecommendation) {
+                // Navegar para tela de produtos
+                _showProductSelection();
+              } else {
+                // Voltar para editar agendamento
+                Navigator.pop(context);
+              }
             },
           ),
         ],
@@ -293,6 +369,146 @@ class _ConfirmarAgendamentoScreenState
           ),
         ),
       ],
+    );
+  }
+
+  void _showProductSelection() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[600],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Adicionar ao agendamento',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildOptionCard(
+                    icon: Icons.shopping_bag,
+                    title: 'Produtos',
+                    subtitle: 'Cremes, géis e acessórios',
+                    onTap: () async {
+                      Navigator.pop(context);
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProdutosScreen(),
+                        ),
+                      );
+                      
+                      if (result != null && result is Map<String, double>) {
+                        setState(() {
+                          _produtosSelecionados.addAll(result);
+                        });
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildOptionCard(
+                    icon: Icons.local_bar,
+                    title: 'Bebidas',
+                    subtitle: 'Cervejas e refrigerantes',
+                    onTap: () async {
+                      Navigator.pop(context);
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const BebidasScreen(),
+                        ),
+                      );
+                      
+                      if (result != null && result is Map<String, double>) {
+                        setState(() {
+                          _produtosSelecionados.addAll(result);
+                        });
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOptionCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2A2A2A),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF333333)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFB84D).withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                color: const Color(0xFFFFB84D),
+                size: 24,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 11,
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

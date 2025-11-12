@@ -21,7 +21,7 @@ class _HistoricoTransacoesScreenState extends State<HistoricoTransacoesScreen> {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       if (authProvider.user != null) {
         Provider.of<CarteiraProvider>(context, listen: false)
-            .carregarTransacoes(authProvider.user!.id!);
+            .carregarTransacoes(authProvider.user!.id!, authProvider.token!);
       }
     });
   }

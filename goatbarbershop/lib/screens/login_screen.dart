@@ -168,21 +168,21 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     SocialLoginButton(
-                      icon: 'assets/icons/google.png',
+                      icon: 'icons/google.png',
                       onPressed: () {
                         // TODO: Implementar login com Google
                       },
                     ),
                     const SizedBox(width: 16),
                     SocialLoginButton(
-                      icon: 'assets/icons/apple.png',
+                      icon: 'icons/apple.png',
                       onPressed: () {
                         // TODO: Implementar login com Apple
                       },
                     ),
                     const SizedBox(width: 16),
                     SocialLoginButton(
-                      icon: 'assets/icons/facebook.png',
+                      icon: 'icons/facebook.png',
                       onPressed: () {
                         // TODO: Implementar login com Facebook
                       },

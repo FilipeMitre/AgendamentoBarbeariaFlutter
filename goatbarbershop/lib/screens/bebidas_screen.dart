@@ -235,14 +235,21 @@ class _BebidasScreenState extends State<BebidasScreen> {
                             padding: const EdgeInsets.only(left: 16),
                             child: ElevatedButton(
                               onPressed: () {
-                                // TODO: Finalizar compra
+                                // Retornar bebidas selecionadas
+                                Map<String, double> bebidasSelecionadas = {};
+                                _carrinho.forEach((produtoId, quantidade) {
+                                  final bebida = _bebidas.firstWhere((b) => b.id == produtoId);
+                                  bebidasSelecionadas[bebida.nome] = bebida.preco * quantidade;
+                                });
+                                
+                                Navigator.pop(context, bebidasSelecionadas);
+                                
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text('Bebidas adicionadas ao agendamento!'),
                                     backgroundColor: Color(0xFF4CAF50),
                                   ),
                                 );
-                                Navigator.pop(context);
                               },
                               style: ElevatedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(vertical: 16),

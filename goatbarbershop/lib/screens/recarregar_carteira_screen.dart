@@ -44,10 +44,11 @@ class _RecarregarCarteiraScreenState extends State<RecarregarCarteiraScreen> {
       final valorTexto = _valorController.text.replaceAll('R\$ ', '').replaceAll(',', '.');
       final valor = double.tryParse(valorTexto) ?? 0;
 
-      if (authProvider.user != null) {
+      if (authProvider.user != null && authProvider.token != null) {
         final sucesso = await carteiraProvider.recarregar(
           authProvider.user!.id!,
           valor,
+          authProvider.token!,
         );
 
         if (mounted) {

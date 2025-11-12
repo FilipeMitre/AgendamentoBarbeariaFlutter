@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/agendamento_provider.dart';
+import '../../providers/barbeiro_provider.dart';
 import '../../models/agendamento_model.dart';
 import 'detalhes_agendamento_barbeiro_dialog.dart';
 
@@ -35,69 +36,8 @@ class _CronogramaDiaScreenState extends State<CronogramaDiaScreen> {
     '19:00',
   ];
 
-  // Agendamentos mockados
-  final Map<String, AgendamentoModel> _agendamentos = {
-    '10:00': AgendamentoModel(
-      id: 1,
-      clienteId: 1,
-      barbeiroId: 1,
-      barbeiroNome: 'João Silva',
-      servicoId: 3,
-      servicoNome: 'Pacote com corte de cabelo e barba',
-      dataAgendamento: DateTime.now(),
-      horario: '10:00',
-      valorServico: 50.00,
-      status: 'concluido',
-    ),
-    '13:00': AgendamentoModel(
-      id: 2,
-      clienteId: 2,
-      barbeiroId: 1,
-      barbeiroNome: 'João Silva',
-      servicoId: 1,
-      servicoNome: 'Corte de cabelo',
-      dataAgendamento: DateTime.now(),
-      horario: '13:00',
-      valorServico: 35.00,
-      status: 'confirmado',
-    ),
-    '15:00': AgendamentoModel(
-      id: 3,
-      clienteId: 3,
-      barbeiroId: 1,
-      barbeiroNome: 'João Silva',
-      servicoId: 3,
-      servicoNome: 'Pacote com corte de cabelo e barba',
-      dataAgendamento: DateTime.now(),
-      horario: '15:00',
-      valorServico: 50.00,
-      status: 'confirmado',
-    ),
-    '17:00': AgendamentoModel(
-      id: 4,
-      clienteId: 4,
-      barbeiroId: 1,
-      barbeiroNome: 'João Silva',
-      servicoId: 1,
-      servicoNome: 'Corte de cabelo',
-      dataAgendamento: DateTime.now(),
-      horario: '17:00',
-      valorServico: 35.00,
-      status: 'confirmado',
-    ),
-    '18:00': AgendamentoModel(
-      id: 5,
-      clienteId: 5,
-      barbeiroId: 1,
-      barbeiroNome: 'João Silva',
-      servicoId: 2,
-      servicoNome: 'Barba',
-      dataAgendamento: DateTime.now(),
-      horario: '18:00',
-      valorServico: 25.00,
-      status: 'confirmado',
-    ),
-  };
+  // Agendamentos (vão ser carregados da API)
+  final Map<String, AgendamentoModel> _agendamentos = {};
 
   @override
   void initState() {
@@ -107,9 +47,34 @@ class _CronogramaDiaScreenState extends State<CronogramaDiaScreen> {
 
   Future<void> _carregarAgendamentos() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    if (authProvider.user != null) {
-      // TODO: Carregar agendamentos do barbeiro da API
+    final barbeiroProvider = Provider.of<BarbeiroProvider>(context, listen: false);
+
+    if (authProvider.user == null) return;
+
+    // Determina o id do barbeiro. Aqui assumimos que a tela é usada pelo barbeiro
+    // logado (tipo 'barbeiro'). Se for outro fluxo, ajuste para passar o id do
+    // barbeiro como parâmetro da tela.
+    final user = authProvider.user!;
+    final int barbeiroId = user.id!;
+
+    final success = await barbeiroProvider.carregarAgendamentosDia(barbeiroId, _dataSelecionada);
+
+    if (!success) {
+      final msg = barbeiroProvider.errorMessage ?? 'Falha ao carregar agendamentos';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
+      );
+      return;
     }
+
+    // Popular o mapa local de agendamentos (chave = horario)
+    final List ags = barbeiroProvider.agendamentosDia;
+    setState(() {
+      _agendamentos.clear();
+      for (var a in ags) {
+        _agendamentos[a.horario] = a;
+      }
+    });
   }
 
   void _mostrarDetalhesAgendamento(AgendamentoModel agendamento) {

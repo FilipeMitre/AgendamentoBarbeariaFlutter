@@ -8,11 +8,7 @@ class AdminProvider with ChangeNotifier {
   List<UserModel> _usuarios = [];
   List<ServicoModel> _servicos = [];
   List<ProdutoModel> _produtos = [];
-
-  int _totalUsuarios = 0;
-  int _totalAgendamentos = 0;
-  double _receitaTotal = 0.0;
-  int _totalProdutos = 0;
+  Map<String, dynamic>? _dashboardData;
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -20,11 +16,7 @@ class AdminProvider with ChangeNotifier {
   List<UserModel> get usuarios => _usuarios;
   List<ServicoModel> get servicos => _servicos;
   List<ProdutoModel> get produtos => _produtos;
-
-  int get totalUsuarios => _totalUsuarios;
-  int get totalAgendamentos => _totalAgendamentos;
-  double get receitaTotal => _receitaTotal;
-  int get totalProdutos => _totalProdutos;
+  Map<String, dynamic>? get dashboardData => _dashboardData;
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
@@ -39,27 +31,18 @@ class AdminProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> carregarEstatisticas() async {
+  Future<void> fetchAdminDashboard() async {
     try {
       setLoading(true);
       setError(null);
-
-      final response = await ApiService.getEstatisticasAdmin();
-
+      final response = await ApiService.getAdminDashboard();
       if (response['success']) {
-        _totalUsuarios = response['total_usuarios'] ?? 0;
-        _totalAgendamentos = response['total_agendamentos'] ?? 0;
-        _receitaTotal = (response['receita_total'] ?? 0).toDouble();
-        _totalProdutos = response['total_produtos'] ?? 0;
-        notifyListeners();
-        return true;
+        _dashboardData = response['data'];
       } else {
-        setError(response['message'] ?? 'Erro ao carregar estatísticas');
-        return false;
+        setError(response['message']);
       }
     } catch (e) {
-      setError('Erro de conexão: $e');
-      return false;
+      setError('Falha ao carregar dados do dashboard: $e');
     } finally {
       setLoading(false);
     }

@@ -53,11 +53,14 @@ class ApiService {
     }
   }
     // Métodos de Carteira
-  static Future<Map<String, dynamic>> getSaldo(int usuarioId) async {
+  static Future<Map<String, dynamic>> getSaldo(int usuarioId, String token) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/carteira/$usuarioId/saldo'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
 
       return jsonDecode(response.body);
@@ -72,11 +75,15 @@ class ApiService {
   static Future<Map<String, dynamic>> recarregarCarteira(
     int usuarioId,
     double valor,
+    String token,
   ) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/carteira/$usuarioId/recarregar'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({'valor': valor}),
       );
 
@@ -89,11 +96,14 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> getTransacoes(int usuarioId) async {
+  static Future<Map<String, dynamic>> getTransacoes(int usuarioId, String token) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/carteira/$usuarioId/transacoes'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
 
       return jsonDecode(response.body);
@@ -105,11 +115,57 @@ class ApiService {
     }
   }
     // Métodos de Agendamento
-  static Future<Map<String, dynamic>> getAgendamentosAtivos(int usuarioId) async {
+  static Future<Map<String, dynamic>> criarAgendamento({
+    required int clienteId,
+    required int barbeiroId,
+    required int servicoId,
+    required String dataAgendamento,
+    required String horario,
+    required double valorServico,
+    required String token,
+    Map<String, double>? produtos,
+  }) async {
+    try {
+      print('DEBUG: Token sendo enviado: ${token.substring(0, 10)}...');
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/agendamentos'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'cliente_id': clienteId,
+          'barbeiro_id': barbeiroId,
+          'servico_id': servicoId,
+          'data_agendamento': dataAgendamento,
+          'horario': horario,
+          'valor_servico': valorServico,
+          'produtos': produtos,
+        }),
+      );
+
+      print('DEBUG: Status da resposta: ${response.statusCode}');
+      print('DEBUG: Corpo da resposta: ${response.body}');
+      
+      return jsonDecode(response.body);
+    } catch (e) {
+      print('DEBUG: Erro na requisição: $e');
+      return {
+        'success': false,
+        'message': 'Erro de conexão com o servidor',
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> getAgendamentosAtivos(int usuarioId, String token) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/agendamentos/$usuarioId/ativos'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
 
       return jsonDecode(response.body);
@@ -121,11 +177,14 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> getHistoricoAgendamentos(int usuarioId) async {
+  static Future<Map<String, dynamic>> getHistoricoAgendamentos(int usuarioId, String token) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/agendamentos/$usuarioId/historico'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
 
       return jsonDecode(response.body);
@@ -222,20 +281,38 @@ class ApiService {
       };
     }
   }
-    // Métodos Admin
-  static Future<Map<String, dynamic>> getEstatisticasAdmin() async {
+  // Métodos Admin
+  static Future<Map<String, dynamic>> getAdminDashboard() async {
     try {
+      // TODO: Obter token de forma segura
+      const token = ''; 
       final response = await http.get(
-        Uri.parse('$baseUrl/admin/estatisticas'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse('$baseUrl/dashboard/admin'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
-
       return jsonDecode(response.body);
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Erro de conexão com o servidor',
-      };
+      return {'success': false, 'message': 'Erro de conexão: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getBarberDashboard() async {
+    try {
+      // TODO: Obter token de forma segura
+      const token = '';
+      final response = await http.get(
+        Uri.parse('$baseUrl/dashboard/barber'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de conexão: $e'};
     }
   }
 

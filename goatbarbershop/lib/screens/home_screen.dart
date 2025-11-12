@@ -8,10 +8,13 @@ import '../models/agendamento_model.dart';
 import '../widgets/barbeiro_card.dart';
 import '../widgets/agendamento_ativo_card.dart';
 import 'agendar_corte_screen.dart';
-import 'produtos_screen.dart';
-import 'bebidas_screen.dart';
+import 'carteira_screen.dart';
 import 'avaliacao_screen.dart';
-import '../utils/admin_guard.dart'; // ADICIONAR ESTE IMPORT
+import '../utils/admin_guard.dart';
+import 'perfil_screen.dart';
+import 'meus_agendamentos_screen.dart';
+import 'admin/admin_dashboard_screen.dart';
+import 'barbeiro/dashboard_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -29,9 +32,9 @@ class _HomeScreenState extends State<HomeScreen> {
     // Carregar agendamentos ativos
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      if (authProvider.user != null) {
+      if (authProvider.user != null && authProvider.token != null) {
         Provider.of<AgendamentoProvider>(context, listen: false)
-            .carregarAgendamentosAtivos(authProvider.user!.id!);
+            .carregarAgendamentosAtivos(authProvider.user!.id!, authProvider.token!);
       }
     });
   }
@@ -379,6 +382,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBottomNavigationBar(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final user = authProvider.user;
+
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF1A1A1A),
@@ -393,20 +399,37 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _buildNavItem(Icons.home, 'Home', true, () {}),
-              _buildNavItem(Icons.shopping_bag_outlined, 'Produtos', false, () {
+              if (user?.tipoUsuario == 'admin')
+                _buildNavItem(Icons.dashboard, 'Dashboard', false, () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => AdminDashboardScreen()),
+                  );
+                }),
+              if (user?.tipoUsuario == 'barbeiro')
+                _buildNavItem(Icons.dashboard, 'Dashboard', false, () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => BarberDashboardScreen()),
+                  );
+                }),
+              _buildNavItem(Icons.account_balance_wallet, 'Carteira', false, () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const ProdutosScreen()),
+                  MaterialPageRoute(builder: (context) => const CarteiraScreen()),
                 );
               }),
-              _buildNavItem(Icons.local_bar_outlined, 'Bebidas', false, () {
+              _buildNavItem(Icons.calendar_today, 'Agendamentos', false, () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const BebidasScreen()),
+                  MaterialPageRoute(builder: (context) => const MeusAgendamentosScreen()),
                 );
               }),
               _buildNavItem(Icons.person_outline, 'Perfil', false, () {
-                _showProfileMenu(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PerfilScreen()),
+                );
               }),
             ],
           ),
@@ -445,42 +468,5 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showProfileMenu(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.person, color: Colors.white),
-              title: const Text('Meu Perfil', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Navegar para perfil
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.account_balance_wallet, color: Colors.white),
-              title: const Text('Carteira', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Navegar para carteira
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text('Sair', style: TextStyle(color: Colors.red)),
-              onTap: () {
-                Navigator.pop(context);
-                Provider.of<AuthProvider>(context, listen: false).logout();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+
 }

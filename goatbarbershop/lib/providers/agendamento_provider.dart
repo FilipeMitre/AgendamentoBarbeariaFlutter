@@ -23,12 +23,12 @@ class AgendamentoProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> carregarAgendamentosAtivos(int usuarioId) async {
+  Future<bool> carregarAgendamentosAtivos(int usuarioId, String token) async {
     try {
       setLoading(true);
       setError(null);
 
-      final response = await ApiService.getAgendamentosAtivos(usuarioId);
+      final response = await ApiService.getAgendamentosAtivos(usuarioId, token);
 
       if (response['success']) {
         _agendamentosAtivos = (response['agendamentos'] as List)
@@ -48,12 +48,12 @@ class AgendamentoProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> carregarHistoricoAgendamentos(int usuarioId) async {
+  Future<bool> carregarHistoricoAgendamentos(int usuarioId, String token) async {
     try {
       setLoading(true);
       setError(null);
 
-      final response = await ApiService.getHistoricoAgendamentos(usuarioId);
+      final response = await ApiService.getHistoricoAgendamentos(usuarioId, token);
 
       if (response['success']) {
         _historicoAgendamentos = (response['agendamentos'] as List)

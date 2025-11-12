@@ -4,10 +4,12 @@ import '../services/api_service.dart';
 
 class BarbeiroProvider with ChangeNotifier {
   List<AgendamentoModel> _agendamentosDia = [];
+  Map<String, dynamic>? _dashboardData;
   bool _isLoading = false;
   String? _errorMessage;
 
   List<AgendamentoModel> get agendamentosDia => _agendamentosDia;
+  Map<String, dynamic>? get dashboardData => _dashboardData;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -19,6 +21,23 @@ class BarbeiroProvider with ChangeNotifier {
   void setError(String? message) {
     _errorMessage = message;
     notifyListeners();
+  }
+
+  Future<void> fetchBarberDashboard() async {
+    try {
+      setLoading(true);
+      setError(null);
+      final response = await ApiService.getBarberDashboard();
+      if (response['success']) {
+        _dashboardData = response['data'];
+      } else {
+        setError(response['message']);
+      }
+    } catch (e) {
+      setError('Falha ao carregar dados do dashboard: $e');
+    } finally {
+      setLoading(false);
+    }
   }
 
   Future<bool> carregarAgendamentosDia(int barbeiroId, DateTime data) async {

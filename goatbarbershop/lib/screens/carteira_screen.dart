@@ -19,9 +19,9 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
     // Carregar saldo da carteira
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      if (authProvider.user != null) {
+      if (authProvider.user != null && authProvider.token != null) {
         Provider.of<CarteiraProvider>(context, listen: false)
-            .carregarSaldo(authProvider.user!.id!);
+            .carregarSaldo(authProvider.user!.id!, authProvider.token!);
       }
     });
   }

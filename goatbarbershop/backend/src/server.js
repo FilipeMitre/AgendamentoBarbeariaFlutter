@@ -11,6 +11,7 @@ const avaliacaoRoutes = require('./routes/avaliacaoRoutes');
 const barbeiroRoutes = require('./routes/barbeiroRoutes');
 const produtoRoutes = require('./routes/produtoRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,6 +29,7 @@ app.use('/api/avaliacoes', avaliacaoRoutes);
 app.use('/api/barbeiro', barbeiroRoutes);
 app.use('/api/produtos', produtoRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Rota de teste
 app.get('/', (req, res) => {

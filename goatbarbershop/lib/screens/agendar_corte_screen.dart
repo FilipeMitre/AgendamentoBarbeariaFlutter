@@ -191,52 +191,63 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
               const SizedBox(height: 24),
 
               // Seleção de barbeiro
-              Row(
+              const Text(
+                'Escolha o barbeiro',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: _barbeiros.map((barbeiro) {
                   final isSelected = _selectedBarbeiro == barbeiro['id'];
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _selectedBarbeiro = barbeiro['id'];
-                        });
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedBarbeiro = barbeiro['id'];
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFFFFB84D)
+                            : const Color(0xFF1A1A1A),
+                        borderRadius: BorderRadius.circular(25),
+                        border: Border.all(
                           color: isSelected
                               ? const Color(0xFFFFB84D)
-                              : const Color(0xFF1A1A1A),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: isSelected
-                                ? const Color(0xFFFFB84D)
-                                : const Color(0xFF333333),
-                          ),
+                              : const Color(0xFF333333),
+                          width: isSelected ? 2 : 1,
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.person,
-                              size: 16,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.person,
+                            size: 18,
+                            color: isSelected ? Colors.black : Colors.white,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            barbeiro['tipo'],
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
                               color: isSelected ? Colors.black : Colors.white,
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              barbeiro['tipo'],
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: isSelected ? Colors.black : Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   );
@@ -247,66 +258,103 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
 
               // Dias disponíveis
               const Text(
-                'Dias disponíveis',
+                'Selecione o dia',
                 style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
                   color: Colors.white,
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
 
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: _diasDisponiveis.map((data) {
+              Container(
+                height: 100,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _diasDisponiveis.length,
+                  itemBuilder: (context, index) {
+                    final data = _diasDisponiveis[index];
                     final isSelected = _selectedDate == data;
-                    final diaSemana = DateFormat('EEE', 'pt_BR')
+                    final diaSemana = DateFormat('EEEE', 'pt_BR')
                         .format(data)
-                        .toUpperCase()
-                        .substring(0, 3);
+                        .toLowerCase();
+                    final diaSemanaCurto = diaSemana.substring(0, 3);
                     final dia = DateFormat('d').format(data);
+                    final mes = DateFormat('MMM', 'pt_BR').format(data);
 
                     return Padding(
-                      padding: const EdgeInsets.only(right: 12),
+                      padding: EdgeInsets.only(
+                        left: index == 0 ? 0 : 8,
+                        right: index == _diasDisponiveis.length - 1 ? 0 : 8,
+                      ),
                       child: GestureDetector(
                         onTap: () {
                           setState(() {
                             _selectedDate = data;
                           });
                         },
-                        child: Container(
-                          width: 70,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: 80,
                           decoration: BoxDecoration(
-                            color: isSelected
-                                ? const Color(0xFFFFB84D)
-                                : const Color(0xFF1A1A1A),
-                            borderRadius: BorderRadius.circular(12),
+                            gradient: isSelected
+                                ? const LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Color(0xFFFFB84D),
+                                      Color(0xFFFF9800),
+                                    ],
+                                  )
+                                : null,
+                            color: isSelected ? null : const Color(0xFF1A1A1A),
+                            borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                               color: isSelected
                                   ? const Color(0xFFFFB84D)
                                   : const Color(0xFF333333),
+                              width: isSelected ? 2 : 1,
                             ),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(0xFFFFB84D).withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ]
+                                : null,
                           ),
                           child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
+                              Text(
+                                diaSemanaCurto.toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isSelected ? Colors.black87 : Colors.grey,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
                               Text(
                                 dia,
                                 style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w800,
                                   color: isSelected ? Colors.black : Colors.white,
                                 ),
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                diaSemana,
+                                mes.toUpperCase(),
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 10,
                                   fontWeight: FontWeight.w500,
-                                  color: isSelected ? Colors.black : Colors.grey,
+                                  color: isSelected ? Colors.black87 : Colors.grey,
+                                  letterSpacing: 0.5,
                                 ),
                               ),
                             ],
@@ -314,7 +362,7 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
                         ),
                       ),
                     );
-                  }).toList(),
+                  },
                 ),
               ),
 
@@ -322,53 +370,80 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
 
               // Horários disponíveis
               const Text(
-                'Horários disponíveis',
+                'Escolha o horário',
                 style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
                   color: Colors.white,
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
 
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: _horariosDisponiveis.map((horario) {
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 2.2,
+                ),
+                itemCount: _horariosDisponiveis.length,
+                itemBuilder: (context, index) {
+                  final horario = _horariosDisponiveis[index];
                   final isSelected = _selectedTime == horario;
+                  
                   return GestureDetector(
                     onTap: () {
                       setState(() {
                         _selectedTime = horario;
                       });
                     },
-                    child: Container(
-                      width: 80,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
                       decoration: BoxDecoration(
-                        color: isSelected
-                            ? const Color(0xFFFFB84D)
-                            : const Color(0xFF1A1A1A),
+                        gradient: isSelected
+                            ? const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Color(0xFFFFB84D),
+                                  Color(0xFFFF9800),
+                                ],
+                              )
+                            : null,
+                        color: isSelected ? null : const Color(0xFF1A1A1A),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: isSelected
                               ? const Color(0xFFFFB84D)
                               : const Color(0xFF333333),
+                          width: isSelected ? 2 : 1,
                         ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: const Color(0xFFFFB84D).withOpacity(0.3),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ]
+                            : null,
                       ),
-                      child: Text(
-                        horario,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: isSelected ? Colors.black : Colors.white,
+                      child: Center(
+                        child: Text(
+                          horario,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: isSelected ? Colors.black : Colors.white,
+                          ),
                         ),
                       ),
                     ),
                   );
-                }).toList(),
+                },
               ),
 
               const SizedBox(height: 32),
@@ -473,13 +548,26 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
                 child: ElevatedButton(
                   onPressed: _canAdvance
                       ? () {
+                          // Build a BarbeiroModel from the selected barber (was passing widget.barbeiro
+                          // which could be a different barber). This ensures the Confirm screen
+                          // receives the actual selected barber id.
+                          final selected = _barbeiros.firstWhere((b) => b['id'] == _selectedBarbeiro);
+                          final selectedBarbeiroModel = BarbeiroModel(
+                            id: selected['id'],
+                            nome: selected['nome'],
+                            foto: null,
+                            avaliacao: 0.0,
+                            distancia: 0.0,
+                            status: 'Aberto',
+                            endereco: null,
+                          );
+
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => ConfirmarAgendamentoScreen(
-                                barbeiro: widget.barbeiro,
-                                barbeiroNome: _barbeiros
-                                    .firstWhere((b) => b['id'] == _selectedBarbeiro)['nome'],
+                                barbeiro: selectedBarbeiroModel,
+                                barbeiroNome: selected['nome'],
                                 data: _selectedDate!,
                                 horario: _selectedTime!,
                                 pacote: _pacotes

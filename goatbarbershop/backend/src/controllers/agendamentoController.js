@@ -10,8 +10,7 @@ exports.criarAgendamento = async (req, res) => {
       barbeiro_id,
       servico_id,
       data_agendamento,
-      horario,
-      produtos
+      horario
     } = req.body;
 
     const cliente_id = req.userId;
@@ -26,7 +25,7 @@ exports.criarAgendamento = async (req, res) => {
 
     await connection.beginTransaction();
 
-    // Buscar serviço
+    // Buscar serviço e configurações de comissão
     const [servicos] = await connection.query(
       'SELECT preco_base FROM servicos WHERE id = ? AND ativo = TRUE',
       [servico_id]
@@ -39,17 +38,18 @@ exports.criarAgendamento = async (req, res) => {
         message: 'Serviço não encontrado'
       });
     }
-
     const valorServico = parseFloat(servicos[0].preco_base);
 
-    // Calcular valor total (serviço + produtos)
-    let valorTotal = valorServico;
+    // Buscar a taxa de comissão do sistema
+    const [config] = await connection.query(
+        "SELECT valor FROM configuracoes_sistema WHERE chave = 'taxa_comissao_servico' LIMIT 1"
+    );
+    const taxaComissao = config.length > 0 ? parseFloat(config[0].valor) : 0.10; // Default 10%
 
-    if (produtos && produtos.length > 0) {
-      for (const produto of produtos) {
-        valorTotal += parseFloat(produto.preco) * parseInt(produto.quantidade);
-      }
-    }
+    // Calcular comissão e valor para o barbeiro
+    const valorComissao = calcularComissao(valorServico, taxaComissao);
+    const valorBarbeiro = calcularValorBarbeiro(valorServico, valorComissao);
+
 
     // Buscar carteira do cliente
     const [carteiras] = await connection.query(
@@ -69,13 +69,13 @@ exports.criarAgendamento = async (req, res) => {
     const saldoAtual = parseFloat(carteira.saldo);
 
     // Verificar saldo
-    if (saldoAtual < valorTotal) {
+    if (saldoAtual < valorServico) {
       await connection.rollback();
       return res.status(400).json({
         success: false,
         message: 'Saldo insuficiente',
         saldo_atual: saldoAtual,
-        valor_necessario: valorTotal
+        valor_necessario: valorServico
       });
     }
 
@@ -98,35 +98,27 @@ exports.criarAgendamento = async (req, res) => {
     }
 
     // Criar agendamento
+    // Debug: log variables de sessão do MySQL para verificar charset/collation
+    try {
+      const [sessionVars] = await connection.query(
+        "SELECT @@character_set_client AS character_set_client, @@character_set_connection AS character_set_connection, @@collation_connection AS collation_connection"
+      );
+      console.log('DEBUG MySQL session vars before INSERT:', sessionVars[0]);
+    } catch (dbgErr) {
+      console.warn('Não foi possível obter variáveis de sessão MySQL:', dbgErr.message);
+    }
+
     const [agendamentoResult] = await connection.query(
       `INSERT INTO agendamentos 
-       (cliente_id, barbeiro_id, servico_id, data_agendamento, horario, valor_servico, status)
-       VALUES (?, ?, ?, ?, ?, ?, 'confirmado')`,
-      [cliente_id, barbeiro_id, servico_id, data_agendamento, horario, valorServico]
+       (cliente_id, barbeiro_id, servico_id, data_agendamento, horario, valor_servico, valor_comissao, valor_barbeiro, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'confirmado')`,
+      [cliente_id, barbeiro_id, servico_id, data_agendamento, horario, valorServico, valorComissao, valorBarbeiro]
     );
 
     const agendamentoId = agendamentoResult.insertId;
 
-    // Adicionar produtos ao agendamento (se houver)
-    if (produtos && produtos.length > 0) {
-      for (const produto of produtos) {
-        await connection.query(
-          `INSERT INTO agendamento_produtos 
-           (agendamento_id, produto_id, quantidade, preco_unitario)
-           VALUES (?, ?, ?, ?)`,
-          [agendamentoId, produto.produto_id, produto.quantidade, produto.preco]
-        );
-
-        // Atualizar estoque
-        await connection.query(
-          'UPDATE produtos SET estoque = estoque - ? WHERE id = ?',
-          [produto.quantidade, produto.produto_id]
-        );
-      }
-    }
-
     // Debitar da carteira do cliente
-    const novoSaldo = saldoAtual - valorTotal;
+    const novoSaldo = saldoAtual - valorServico;
     await connection.query(
       'UPDATE carteiras SET saldo = ? WHERE id = ?',
       [novoSaldo, carteira.id]
@@ -139,7 +131,7 @@ exports.criarAgendamento = async (req, res) => {
        VALUES (?, 'pagamento', ?, ?, ?, ?)`,
       [
         carteira.id,
-        valorTotal,
+        valorServico,
         saldoAtual,
         novoSaldo,
         `Agendamento #${agendamentoId}`
@@ -392,19 +384,6 @@ exports.cancelarAgendamento = async (req, res) => {
           ]
         );
       }
-    }
-
-    // Restaurar estoque de produtos (se houver)
-    const [produtosAgendamento] = await connection.query(
-      'SELECT produto_id, quantidade FROM agendamento_produtos WHERE agendamento_id = ?',
-      [agendamentoId]
-    );
-
-    for (const produto of produtosAgendamento) {
-      await connection.query(
-        'UPDATE produtos SET estoque = estoque + ? WHERE id = ?',
-        [produto.quantidade, produto.produto_id]
-      );
     }
 
     await connection.commit();

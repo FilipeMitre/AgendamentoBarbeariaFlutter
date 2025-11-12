@@ -4,13 +4,15 @@ import '../services/api_service.dart';
 
 class AuthProvider with ChangeNotifier {
   UserModel? _user;
+  String? _token;
   bool _isLoading = false;
   String? _errorMessage;
 
   UserModel? get user => _user;
+  String? get token => _token;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
-  bool get isAuthenticated => _user != null;
+  bool get isAuthenticated => _user != null && _token != null;
 
   void setLoading(bool value) {
     _isLoading = value;
@@ -31,6 +33,7 @@ class AuthProvider with ChangeNotifier {
 
       if (response['success']) {
         _user = UserModel.fromJson(response['user']);
+        _token = response['token'];
         notifyListeners();
         return true;
       } else {
@@ -64,6 +67,7 @@ class AuthProvider with ChangeNotifier {
 
       if (response['success']) {
         _user = UserModel.fromJson(response['user']);
+        _token = response['token'];
         notifyListeners();
         return true;
       } else {
@@ -80,6 +84,7 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> logout() async {
     _user = null;
+    _token = null;
     notifyListeners();
   }
 }

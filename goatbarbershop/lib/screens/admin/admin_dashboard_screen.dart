@@ -24,13 +24,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _carregarDashboard() async {
     final adminProvider = Provider.of<AdminProvider>(context, listen: false);
-    await adminProvider.carregarEstatisticas();
+    await adminProvider.fetchAdminDashboard();
   }
 
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final adminProvider = Provider.of<AdminProvider>(context);
+    final dashboardData = adminProvider.dashboardData;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -102,13 +103,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFB84D)),
                   ),
                 )
-              else ...[
+              else if (dashboardData != null) ...[
                 Row(
                   children: [
                     Expanded(
                       child: _buildStatCard(
                         'Usuários',
-                        adminProvider.totalUsuarios.toString(),
+                        dashboardData['totalUsuarios']?.toString() ?? '0',
                         Icons.people,
                         const Color(0xFFFFB84D),
                       ),
@@ -117,7 +118,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Expanded(
                       child: _buildStatCard(
                         'Agendamentos',
-                        adminProvider.totalAgendamentos.toString(),
+                        dashboardData['totalAgendamentos']?.toString() ?? '0',
                         Icons.calendar_today,
                         Colors.blue,
                       ),
@@ -130,7 +131,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Expanded(
                       child: _buildStatCard(
                         'Receita',
-                        'R\$ ${adminProvider.receitaTotal.toStringAsFixed(2)}',
+                        'R\$ ${dashboardData['receitaTotal']?.toStringAsFixed(2) ?? '0.00'}',
                         Icons.attach_money,
                         Colors.green,
                       ),
@@ -139,7 +140,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Expanded(
                       child: _buildStatCard(
                         'Produtos',
-                        adminProvider.totalProdutos.toString(),
+                        dashboardData['totalProdutos']?.toString() ?? '0',
                         Icons.inventory,
                         Colors.purple,
                       ),
