@@ -36,21 +36,8 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
 
   List<DateTime> _diasDisponiveis = [];
   List<String> _horariosDisponiveis = [];
-
-  final List<Map<String, dynamic>> _pacotes = [
-    {
-      'id': 1,
-      'nome': 'Completo',
-      'descricao': 'Pacote com corte de cabelo e barba',
-      'icon': Icons.check_circle,
-    },
-    {
-      'id': 2,
-      'nome': 'Cabelo',
-      'descricao': 'Apenas corte de cabelo',
-      'icon': Icons.content_cut,
-    },
-  ];
+  List<ServicoModel> _servicos = [];
+  bool _isLoadingServicos = false;
 
   bool get _canAdvance =>
       _selectedBarbeiro != null &&
@@ -58,10 +45,23 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
       _selectedTime != null &&
       _selectedPacote != null;
 
+  ServicoModel? get _servicoSelecionado {
+    return _servicos.firstWhere(
+      (servico) => servico.id == _selectedPacote,
+      orElse: () => ServicoModel(
+        id: 0,
+        nome: 'Serviço não encontrado',
+        preco: 0.0,
+        duracaoMinutos: 0,
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     _selectedBarbeiro = widget.barbeiro.id;
+    _carregarServicos();
     _carregarDiasDisponiveis();
     // Atualizar a cada 30 segundos
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
@@ -75,6 +75,58 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
   void dispose() {
     _refreshTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _carregarServicos() async {
+    setState(() {
+      _isLoadingServicos = true;
+    });
+
+    try {
+      final response = await ApiService.getServicosAtivos();
+      if (response['success'] && mounted) {
+        setState(() {
+          _servicos = (response['servicos'] as List)
+              .map((servico) => ServicoModel.fromJson(servico))
+              .toList();
+        });
+      }
+    } catch (e) {
+      // Em caso de erro, usar serviços padrão
+      if (mounted) {
+        setState(() {
+          _servicos = [
+            ServicoModel(
+              id: 1,
+              nome: 'Corte Masculino',
+              descricao: 'Corte de cabelo masculino tradicional',
+              preco: 35.00,
+              duracaoMinutos: 30,
+            ),
+            ServicoModel(
+              id: 2,
+              nome: 'Barba',
+              descricao: 'Aparar e modelar barba',
+              preco: 25.00,
+              duracaoMinutos: 30,
+            ),
+            ServicoModel(
+              id: 3,
+              nome: 'Corte + Barba (Completo)',
+              descricao: 'Pacote completo: corte e barba',
+              preco: 50.00,
+              duracaoMinutos: 60,
+            ),
+          ];
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingServicos = false;
+        });
+      }
+    }
   }
 
   Future<void> _carregarDiasDisponiveis() async {
@@ -623,9 +675,9 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
 
               const SizedBox(height: 32),
 
-              // Escolha seu pacote
+              // Escolha seu serviço
               const Text(
-                'Escolha seu pacote',
+                'Escolha seu serviço',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -635,84 +687,126 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
 
               const SizedBox(height: 16),
 
-              ..._pacotes.map((pacote) {
-                final isSelected = _selectedPacote == pacote['id'];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _selectedPacote = pacote['id'];
-                      });
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? const Color(0xFFFFB84D).withOpacity(0.1)
-                            : const Color(0xFF1A1A1A),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isSelected
-                              ? const Color(0xFFFFB84D)
-                              : const Color(0xFF333333),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? const Color(0xFFFFB84D)
-                                  : const Color(0xFF2A2A2A),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(
-                              pacote['icon'],
-                              color: isSelected ? Colors.black : const Color(0xFFFFB84D),
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  pacote['nome'],
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: isSelected
-                                        ? const Color(0xFFFFB84D)
-                                        : Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  pacote['descricao'],
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (isSelected)
-                            const Icon(
-                              Icons.check_circle,
-                              color: Color(0xFFFFB84D),
-                              size: 24,
-                            ),
-                        ],
-                      ),
+              if (_isLoadingServicos)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: CircularProgressIndicator(
+                      color: Color(0xFFFFB84D),
                     ),
                   ),
-                );
-              }).toList(),
+                )
+              else
+                ..._servicos.map((servico) {
+                  final isSelected = _selectedPacote == servico.id;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedPacote = servico.id;
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFFFFB84D).withOpacity(0.1)
+                              : const Color(0xFF1A1A1A),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFFFFB84D)
+                                : const Color(0xFF333333),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? const Color(0xFFFFB84D)
+                                    : const Color(0xFF2A2A2A),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                _getServiceIcon(servico.nome),
+                                color: isSelected ? Colors.black : const Color(0xFFFFB84D),
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          servico.nome,
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: isSelected
+                                                ? const Color(0xFFFFB84D)
+                                                : Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                      Text(
+                                        'R\$ ${servico.preco.toStringAsFixed(2)}',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: isSelected
+                                              ? const Color(0xFFFFB84D)
+                                              : Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          servico.descricao ?? '',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      ),
+                                      Text(
+                                        '${servico.duracaoMinutos} min',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            if (isSelected)
+                              const Icon(
+                                Icons.check_circle,
+                                color: Color(0xFFFFB84D),
+                                size: 24,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
 
               const SizedBox(height: 32),
 
@@ -753,19 +847,21 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
                             endereco: null,
                           );
 
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ConfirmarAgendamentoScreen(
-                                barbeiro: selectedBarbeiroModel,
-                                barbeiroNome: selected['nome'],
-                                data: _selectedDate!,
-                                horario: _selectedTime!,
-                                pacote: _pacotes
-                                    .firstWhere((p) => p['id'] == _selectedPacote)['nome'],
+                          final servicoSelecionado = _servicoSelecionado;
+                          if (servicoSelecionado != null) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ConfirmarAgendamentoScreen(
+                                  barbeiro: selectedBarbeiroModel,
+                                  barbeiroNome: selected['nome'],
+                                  data: _selectedDate!,
+                                  horario: _selectedTime!,
+                                  servico: servicoSelecionado,
+                                ),
                               ),
-                            ),
-                          );
+                            );
+                          }
                         }
                       : null,
                   style: ElevatedButton.styleFrom(
@@ -790,5 +886,26 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
         ),
       ),
     );
+  }
+
+  IconData _getServiceIcon(String serviceName) {
+    final name = serviceName.toLowerCase();
+    if (name.contains('completo') || name.contains('corte + barba')) {
+      return Icons.check_circle;
+    } else if (name.contains('barba')) {
+      return Icons.face;
+    } else if (name.contains('corte') || name.contains('cabelo')) {
+      return Icons.content_cut;
+    } else if (name.contains('coloração') || name.contains('tintura')) {
+      return Icons.palette;
+    } else if (name.contains('hidratação') || name.contains('tratamento')) {
+      return Icons.water_drop;
+    } else if (name.contains('escova')) {
+      return Icons.brush;
+    } else if (name.contains('luzes') || name.contains('mechas')) {
+      return Icons.highlight;
+    } else {
+      return Icons.content_cut;
+    }
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/barbeiro_model.dart';
+import '../models/servico_model.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 import 'recomendacoes_screen.dart';
@@ -13,7 +14,7 @@ class ConfirmarAgendamentoScreen extends StatefulWidget {
   final String barbeiroNome;
   final DateTime data;
   final String horario;
-  final String pacote;
+  final ServicoModel servico;
 
   const ConfirmarAgendamentoScreen({
     super.key,
@@ -21,7 +22,7 @@ class ConfirmarAgendamentoScreen extends StatefulWidget {
     required this.barbeiroNome,
     required this.data,
     required this.horario,
-    required this.pacote,
+    required this.servico,
   });
 
   @override
@@ -34,19 +35,12 @@ class _ConfirmarAgendamentoScreenState
   bool _isLoading = false;
   Map<String, double> _produtosSelecionados = {}; // nome: valor
 
-  // Valores mockados - virão do banco
-  final double _valorCabelo = 40.00;
-  final double _valorBarba = 20.00;
-
   double get _valorProdutos {
     return _produtosSelecionados.values.fold(0.0, (sum, valor) => sum + valor);
   }
 
   double get _valorTotal {
-    double valorServicos = widget.pacote == 'Completo' 
-        ? _valorCabelo + _valorBarba 
-        : _valorCabelo;
-    return valorServicos + _valorProdutos;
+    return widget.servico.preco + _valorProdutos;
   }
 
   Future<void> _confirmarAgendamento() async {
@@ -73,7 +67,7 @@ class _ConfirmarAgendamentoScreenState
       final response = await ApiService.criarAgendamento(
         clienteId: authProvider.user!.id!,
         barbeiroId: widget.barbeiro.id, // ID do barbeiro selecionado
-        servicoId: widget.pacote == 'Completo' ? 1 : 2,
+        servicoId: widget.servico.id,
         dataAgendamento: DateFormat('yyyy-MM-dd').format(widget.data),
         horario: widget.horario,
         token: authProvider.token!,
@@ -151,14 +145,12 @@ class _ConfirmarAgendamentoScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Card Completo
+              // Card Serviço
               _buildInfoCard(
-                icon: Icons.check_circle,
+                icon: _getServiceIcon(widget.servico.nome),
                 color: const Color(0xFFFFB84D),
-                title: widget.pacote,
-                subtitle: widget.pacote == 'Completo'
-                    ? 'Pacote com corte de cabelo e barba'
-                    : 'Apenas corte de cabelo',
+                title: widget.servico.nome,
+                subtitle: widget.servico.descricao ?? 'Serviço de barbearia',
               ),
 
               const SizedBox(height: 12),
@@ -204,11 +196,7 @@ class _ConfirmarAgendamentoScreenState
                 ),
                 child: Column(
                   children: [
-                    _buildValorRow('Cabelo', _valorCabelo),
-                    if (widget.pacote == 'Completo') ...[
-                      const SizedBox(height: 12),
-                      _buildValorRow('Barba', _valorBarba),
-                    ],
+                    _buildValorRow(widget.servico.nome, widget.servico.preco),
                     // Mostrar produtos selecionados
                     if (_produtosSelecionados.isNotEmpty) ...[
                       const SizedBox(height: 12),
@@ -509,5 +497,26 @@ class _ConfirmarAgendamentoScreenState
         ),
       ),
     );
+  }
+
+  IconData _getServiceIcon(String serviceName) {
+    final name = serviceName.toLowerCase();
+    if (name.contains('completo') || name.contains('corte + barba')) {
+      return Icons.check_circle;
+    } else if (name.contains('barba')) {
+      return Icons.face;
+    } else if (name.contains('corte') || name.contains('cabelo')) {
+      return Icons.content_cut;
+    } else if (name.contains('coloração') || name.contains('tintura')) {
+      return Icons.palette;
+    } else if (name.contains('hidratação') || name.contains('tratamento')) {
+      return Icons.water_drop;
+    } else if (name.contains('escova')) {
+      return Icons.brush;
+    } else if (name.contains('luzes') || name.contains('mechas')) {
+      return Icons.highlight;
+    } else {
+      return Icons.content_cut;
+    }
   }
 }

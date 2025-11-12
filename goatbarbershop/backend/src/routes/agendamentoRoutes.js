@@ -13,6 +13,9 @@ router.get('/horarios-disponiveis', agendamentoController.getHorariosDisponiveis
 router.get('/dias-disponiveis', agendamentoController.getDiasDisponiveis);
 router.get('/verificar-disponibilidade', agendamentoController.verificarDisponibilidade);
 
+// Rota para buscar serviços ativos
+router.get('/servicos', agendamentoController.getServicosAtivos);
+
 // Endpoint de teste
 
 

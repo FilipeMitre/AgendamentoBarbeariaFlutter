@@ -422,6 +422,23 @@ class ApiService {
     }
   }
 
+  // Obter serviços ativos para agendamento
+  static Future<Map<String, dynamic>> getServicosAtivos() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/agendamentos/servicos'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro de conexão com o servidor',
+      };
+    }
+  }
+
   static Future<Map<String, dynamic>> adicionarServico(
     String nome,
     String descricao,

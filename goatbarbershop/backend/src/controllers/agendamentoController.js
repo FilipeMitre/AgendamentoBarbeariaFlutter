@@ -479,6 +479,31 @@ exports.verificarDisponibilidade = async (req, res) => {
   }
 };
 
+// Obter serviços ativos
+exports.getServicosAtivos = async (req, res) => {
+  try {
+    const [servicos] = await db.query(
+      `SELECT id, nome, descricao, preco_base, duracao_minutos 
+       FROM servicos 
+       WHERE ativo = TRUE 
+       ORDER BY nome`
+    );
+
+    res.json({
+      success: true,
+      servicos
+    });
+
+  } catch (error) {
+    console.error('Erro ao obter serviços ativos:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao obter serviços',
+      error: error.message
+    });
+  }
+};
+
 // Cancelar agendamento
 exports.cancelarAgendamento = async (req, res) => {
   const connection = await db.getConnection();
