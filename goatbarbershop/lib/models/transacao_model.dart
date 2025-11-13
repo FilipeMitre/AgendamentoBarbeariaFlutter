@@ -21,9 +21,9 @@ class TransacaoModel {
     return TransacaoModel(
       id: json['id'],
       tipo: json['tipo_transacao'],
-      valor: (json['valor'] ?? 0).toDouble(),
-      saldoAnterior: (json['saldo_anterior'] ?? 0).toDouble(),
-      saldoPosterior: (json['saldo_posterior'] ?? 0).toDouble(),
+      valor: double.tryParse(json['valor']?.toString() ?? '0') ?? 0.0,
+      saldoAnterior: double.tryParse(json['saldo_anterior']?.toString() ?? '0') ?? 0.0,
+      saldoPosterior: double.tryParse(json['saldo_posterior']?.toString() ?? '0') ?? 0.0,
       descricao: json['descricao'],
       data: DateTime.parse(json['data_transacao']),
     );

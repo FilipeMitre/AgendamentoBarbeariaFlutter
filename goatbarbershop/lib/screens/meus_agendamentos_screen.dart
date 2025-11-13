@@ -262,7 +262,7 @@ class _MeusAgendamentosScreenState extends State<MeusAgendamentosScreen>
               ),
               if (isActive && agendamento.status == 'confirmado')
                 TextButton(
-                  onPressed: () => _showCancelDialog(agendamento),
+                  onPressed: () => _cancelarAgendamento(agendamento),
                   child: const Text(
                     'Cancelar',
                     style: TextStyle(color: Colors.red),
@@ -341,8 +341,8 @@ class _MeusAgendamentosScreenState extends State<MeusAgendamentosScreen>
     }
   }
 
-  void _showCancelDialog(AgendamentoModel agendamento) {
-    showDialog(
+  Future<void> _cancelarAgendamento(AgendamentoModel agendamento) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
@@ -356,23 +356,14 @@ class _MeusAgendamentosScreenState extends State<MeusAgendamentosScreen>
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text(
               'Não',
               style: TextStyle(color: Colors.grey),
             ),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Implementar cancelamento
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Agendamento cancelado com sucesso!'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            },
+            onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
             ),
@@ -381,5 +372,50 @@ class _MeusAgendamentosScreenState extends State<MeusAgendamentosScreen>
         ],
       ),
     );
+
+    if (confirmed == true) {
+      try {
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final response = await ApiService.cancelarAgendamento(
+          agendamento.id!,
+          'Cancelado pelo cliente',
+          authProvider.token!,
+        );
+
+        if (response['success'] == true) {
+          await _carregarAgendamentos();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  response['taxa_aplicada'] == true
+                      ? 'Agendamento cancelado. Taxa aplicada por cancelamento tardio.'
+                      : 'Agendamento cancelado com sucesso!'
+                ),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(response['message'] ?? 'Erro ao cancelar agendamento'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Erro de conexão'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 }

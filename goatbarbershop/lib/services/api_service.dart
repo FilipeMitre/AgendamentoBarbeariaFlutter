@@ -312,6 +312,30 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> cancelarAgendamento(
+    int agendamentoId,
+    String motivo,
+    String token,
+  ) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/agendamentos/$agendamentoId/cancelar'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'motivo': motivo}),
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro de conexão com o servidor',
+      };
+    }
+  }
+
   static Future<Map<String, dynamic>> cancelarAgendamentoBarbeiro(
     int agendamentoId,
     String motivo,

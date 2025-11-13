@@ -41,14 +41,14 @@ class AgendamentoModel {
     return AgendamentoModel(
       id: json['id'],
       clienteId: json['cliente_id'],
-      clienteNome: json['cliente_nome'], // Adicionar
+      clienteNome: json['cliente_nome'],
       barbeiroId: json['barbeiro_id'],
       barbeiroNome: json['barbeiro_nome'] ?? '',
       servicoId: json['servico_id'],
       servicoNome: json['servico_nome'] ?? '',
       dataAgendamento: DateTime.parse(json['data_agendamento']),
       horario: json['horario'],
-      valorServico: (json['valor_servico'] ?? 0).toDouble(),
+      valorServico: double.tryParse(json['valor_servico']?.toString() ?? '0') ?? 0.0,
       status: json['status'] ?? 'confirmado',
     );
   }

@@ -17,9 +17,13 @@ class _HistoricoTransacoesScreenState extends State<HistoricoTransacoesScreen> {
   @override
   void initState() {
     super.initState();
+    _carregarTransacoes();
+  }
+
+  void _carregarTransacoes() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      if (authProvider.user != null) {
+      if (authProvider.user != null && authProvider.token != null) {
         Provider.of<CarteiraProvider>(context, listen: false)
             .carregarTransacoes(authProvider.user!.id!, authProvider.token!);
       }
@@ -47,6 +51,12 @@ class _HistoricoTransacoesScreenState extends State<HistoricoTransacoesScreen> {
           ),
         ),
         centerTitle: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: _carregarTransacoes,
+          ),
+        ],
       ),
       body: carteiraProvider.isLoading
           ? const Center(

@@ -39,6 +39,8 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+
+
   // Dados mockados - depois virão da API
   final List<BarbeiroModel> _barbeirosDestaque = [
     BarbeiroModel(
@@ -142,6 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(width: 8),
                         ],
+
                         // Botão de notificações
                         Container(
                           width: 48,
@@ -161,7 +164,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                   color: Colors.white,
                                 ),
                                 onPressed: () {
-                                  // TODO: Navegar para notificações
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const MeusAgendamentosScreen(),
+                                    ),
+                                  );
                                 },
                               ),
                               if (agendamentoProvider.agendamentosAtivos.isNotEmpty)
@@ -217,11 +225,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   AgendamentoAtivoCard(
                     agendamento: agendamentoProvider.agendamentosAtivos.first,
                     onTap: () {
-                      // Navegar para detalhes do agendamento
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MeusAgendamentosScreen(),
+                        ),
+                      );
                     },
                   ),
                   const SizedBox(height: 24),
                 ],
+
+                const SizedBox(height: 24),
 
                 // Último local visitado
                 const Text(
@@ -318,7 +333,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                       barbeiro: _barbeirosDestaque[0],
                                     ),
                                   ),
-                                );
+                                ).then((_) {
+                                  // Recarregar agendamentos ao voltar
+                                  final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                                  if (authProvider.user != null && authProvider.token != null) {
+                                    Provider.of<AgendamentoProvider>(context, listen: false)
+                                        .carregarAgendamentosAtivos(authProvider.user!.id!, authProvider.token!);
+                                  }
+                                });
                               },
                               style: ElevatedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
@@ -350,26 +372,30 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 16),
 
                 // Lista de barbeiros
-                ..._barbeirosDestaque.map((barbeiro) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: BarbeiroCard(
-                      barbeiro: barbeiro,
-                      onTap: () {
-                        if (barbeiro.status == 'Aberto') {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => AgendarCorteScreen(
-                                barbeiro: barbeiro,
-                              ),
+                ..._barbeirosDestaque.map((barbeiro) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: BarbeiroCard(
+                    barbeiro: barbeiro,
+                    onTap: () {
+                      if (barbeiro.status == 'Aberto') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AgendarCorteScreen(
+                              barbeiro: barbeiro,
                             ),
-                          );
-                        }
-                      },
-                    ),
-                  );
-                }).toList(),
+                          ),
+                        ).then((_) {
+                          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                          if (authProvider.user != null && authProvider.token != null) {
+                            Provider.of<AgendamentoProvider>(context, listen: false)
+                                .carregarAgendamentosAtivos(authProvider.user!.id!, authProvider.token!);
+                          }
+                        });
+                      }
+                    },
+                  ),
+                )),
 
                 const SizedBox(height: 20),
               ],

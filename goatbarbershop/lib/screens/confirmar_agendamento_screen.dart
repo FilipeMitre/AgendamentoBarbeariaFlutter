@@ -5,6 +5,7 @@ import '../models/barbeiro_model.dart';
 import '../models/servico_model.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../providers/agendamento_provider.dart';
 import 'recomendacoes_screen.dart';
 import 'produtos_screen.dart';
 import 'bebidas_screen.dart';
@@ -80,6 +81,13 @@ class _ConfirmarAgendamentoScreenState
         });
 
         if (response['success'] == true) {
+          // Recarregar agendamentos
+          final agendamentoProvider = Provider.of<AgendamentoProvider>(context, listen: false);
+          await agendamentoProvider.carregarAgendamentosAtivos(
+            authProvider.user!.id!, 
+            authProvider.token!
+          );
+          
           // Voltar para home com mensagem de sucesso
           Navigator.popUntil(context, (route) => route.isFirst);
           

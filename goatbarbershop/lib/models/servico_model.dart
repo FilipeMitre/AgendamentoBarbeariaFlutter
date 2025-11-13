@@ -20,7 +20,7 @@ class ServicoModel {
       id: json['id'],
       nome: json['nome'],
       descricao: json['descricao'],
-      preco: (json['preco_base'] ?? 0).toDouble(),
+      preco: double.tryParse(json['preco_base']?.toString() ?? '0') ?? 0.0,
       duracaoMinutos: json['duracao_minutos'] ?? 30,
       ativo: json['ativo'] == 1 || json['ativo'] == true,
     );

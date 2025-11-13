@@ -181,7 +181,14 @@ class _CarteiraScreenState extends State<CarteiraScreen> {
                     MaterialPageRoute(
                       builder: (context) => const HistoricoTransacoesScreen(),
                     ),
-                  );
+                  ).then((_) {
+                    // Recarregar saldo ao voltar
+                    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                    if (authProvider.user != null && authProvider.token != null) {
+                      Provider.of<CarteiraProvider>(context, listen: false)
+                          .carregarSaldo(authProvider.user!.id!, authProvider.token!);
+                    }
+                  });
                 },
                 child: Container(
                   padding: const EdgeInsets.all(16),

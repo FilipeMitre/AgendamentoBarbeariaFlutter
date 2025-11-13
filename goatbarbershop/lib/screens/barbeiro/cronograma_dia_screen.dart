@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/agendamento_provider.dart';
-import '../../providers/barbeiro_provider.dart';
+import '../../services/api_service.dart';
 import '../../models/agendamento_model.dart';
 import 'detalhes_agendamento_barbeiro_dialog.dart';
 
@@ -47,34 +46,37 @@ class _CronogramaDiaScreenState extends State<CronogramaDiaScreen> {
 
   Future<void> _carregarAgendamentos() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final barbeiroProvider = Provider.of<BarbeiroProvider>(context, listen: false);
 
-    if (authProvider.user == null) return;
+    if (authProvider.user?.id == null) return;
 
-    // Determina o id do barbeiro. Aqui assumimos que a tela é usada pelo barbeiro
-    // logado (tipo 'barbeiro'). Se for outro fluxo, ajuste para passar o id do
-    // barbeiro como parâmetro da tela.
-    final user = authProvider.user!;
-    final int barbeiroId = user.id!;
-
-    final success = await barbeiroProvider.carregarAgendamentosDia(barbeiroId, _dataSelecionada);
-
-    if (!success) {
-      final msg = barbeiroProvider.errorMessage ?? 'Falha ao carregar agendamentos';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.red),
+    try {
+      final response = await ApiService.getAgendamentosBarbeiro(
+        authProvider.user!.id!,
+        _dataSelecionada,
       );
-      return;
-    }
 
-    // Popular o mapa local de agendamentos (chave = horario)
-    final List ags = barbeiroProvider.agendamentosDia;
-    setState(() {
-      _agendamentos.clear();
-      for (var a in ags) {
-        _agendamentos[a.horario] = a;
+      if (response['success'] == true && mounted) {
+        final agendamentos = (response['agendamentos'] as List)
+            .map((json) => AgendamentoModel.fromJson(json))
+            .toList();
+
+        setState(() {
+          _agendamentos.clear();
+          for (var agendamento in agendamentos) {
+            _agendamentos[agendamento.horario] = agendamento;
+          }
+        });
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Erro ao carregar agendamentos'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _mostrarDetalhesAgendamento(AgendamentoModel agendamento) {
@@ -272,6 +274,7 @@ class _CronogramaDiaScreenState extends State<CronogramaDiaScreen> {
                           setState(() {
                             _dataSelecionada = data;
                           });
+                          _carregarAgendamentos();
                         },
                         child: Container(
                           width: 70,

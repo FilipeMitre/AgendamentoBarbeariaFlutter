@@ -27,7 +27,7 @@ class AgendamentoProvider with ChangeNotifier {
     try {
       setLoading(true);
       setError(null);
-
+      
       final response = await ApiService.getAgendamentosAtivos(usuarioId, token);
 
       if (response['success']) {
@@ -71,5 +71,12 @@ class AgendamentoProvider with ChangeNotifier {
     } finally {
       setLoading(false);
     }
+  }
+
+  Future<void> recarregarTodos(int usuarioId, String token) async {
+    await Future.wait([
+      carregarAgendamentosAtivos(usuarioId, token),
+      carregarHistoricoAgendamentos(usuarioId, token),
+    ]);
   }
 }
