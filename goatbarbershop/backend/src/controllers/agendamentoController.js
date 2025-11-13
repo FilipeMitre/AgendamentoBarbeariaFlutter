@@ -320,11 +320,20 @@ exports.getHorariosDisponiveis = async (req, res) => {
       `SELECT horario FROM agendamentos 
        WHERE barbeiro_id = ? 
        AND data_agendamento = ? 
-       AND status NOT IN ('cancelado')`,
+       AND status IN ('confirmado', 'concluido')`,
       [barbeiro_id, data]
     );
 
-    const horariosOcupados = agendamentosOcupados.map(a => a.horario);
+    const horariosOcupados = agendamentosOcupados.map(a => {
+      // Converter TIME para string no formato HH:MM
+      const horario = a.horario;
+      if (typeof horario === 'string') {
+        return horario.substring(0, 5); // Pegar apenas HH:MM
+      }
+      return horario;
+    });
+    
+    console.log('DEBUG: Horários ocupados encontrados:', horariosOcupados);
 
     // Se for hoje, filtrar horários que já passaram
     let horariosDisponiveis = horariosBase;
@@ -344,7 +353,8 @@ exports.getHorariosDisponiveis = async (req, res) => {
 
     res.json({
       success: true,
-      horarios: horariosDisponiveis
+      horarios: horariosDisponiveis,
+      horarios_ocupados: horariosOcupados
     });
 
   } catch (error) {
@@ -371,8 +381,9 @@ exports.getDiasDisponiveis = async (req, res) => {
 
     const diasDisponiveis = [];
     const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0); // Zerar horas para comparação correta
     
-    // Gerar próximos 30 dias (excluindo domingos)
+    // Gerar próximos 45 dias para garantir 30 dias úteis
     for (let i = 0; i < 45; i++) {
       const data = new Date(hoje);
       data.setDate(hoje.getDate() + i);
@@ -386,7 +397,7 @@ exports.getDiasDisponiveis = async (req, res) => {
         `SELECT COUNT(*) as total FROM agendamentos 
          WHERE barbeiro_id = ? 
          AND data_agendamento = ? 
-         AND status NOT IN ('cancelado')`,
+         AND status IN ('confirmado', 'concluido')`,
         [barbeiro_id, dataFormatada]
       );
 
@@ -395,10 +406,20 @@ exports.getDiasDisponiveis = async (req, res) => {
       
       // Se for hoje, considerar apenas horários futuros
       let horariosDisponiveis = horariosBase;
-      if (data.toDateString() === hoje.toDateString()) {
-        const agora = new Date();
+      const agora = new Date();
+      const dataAtual = new Date();
+      dataAtual.setHours(0, 0, 0, 0);
+      
+      if (data.getTime() === dataAtual.getTime()) {
         const horaAtual = agora.getHours();
-        horariosDisponiveis = Math.max(0, 18 - Math.max(8, horaAtual + 1));
+        const minutoAtual = agora.getMinutes();
+        
+        // Contar quantos horários ainda estão disponíveis hoje
+        const horariosHoje = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'];
+        horariosDisponiveis = horariosHoje.filter(horario => {
+          const [hora, minuto] = horario.split(':').map(Number);
+          return hora > horaAtual || (hora === horaAtual && minuto > minutoAtual + 30);
+        }).length;
       }
 
       if (totalAgendamentos < horariosDisponiveis) {
@@ -457,7 +478,7 @@ exports.verificarDisponibilidade = async (req, res) => {
        WHERE barbeiro_id = ? 
        AND data_agendamento = ? 
        AND horario = ? 
-       AND status NOT IN ('cancelado')`,
+       AND status IN ('confirmado', 'concluido')`,
       [barbeiro_id, data, horario]
     );
 

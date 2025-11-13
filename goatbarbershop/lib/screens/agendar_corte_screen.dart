@@ -36,6 +36,7 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
 
   List<DateTime> _diasDisponiveis = [];
   List<String> _horariosDisponiveis = [];
+  List<String> _horariosOcupados = [];
   List<ServicoModel> _servicos = [];
   bool _isLoadingServicos = false;
 
@@ -191,6 +192,7 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
       if (response['success'] && mounted) {
         setState(() {
           _horariosDisponiveis = List<String>.from(response['horarios']);
+          _horariosOcupados = List<String>.from(response['horarios_ocupados'] ?? []);
         });
       }
     } catch (e) {
@@ -198,6 +200,7 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
       if (mounted) {
         setState(() {
           _horariosDisponiveis = _gerarHorariosPadrao();
+          _horariosOcupados = [];
         });
       }
     } finally {
@@ -556,6 +559,31 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
                 ),
               ),
 
+              const SizedBox(height: 12),
+
+              // Legenda dos horários
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildLegendaItem(
+                    color: const Color(0xFF1A1A1A),
+                    borderColor: const Color(0xFF333333),
+                    label: 'Disponível',
+                  ),
+                  _buildLegendaItem(
+                    color: const Color(0xFF8B0000),
+                    borderColor: Colors.red,
+                    label: 'Ocupado',
+                  ),
+                  _buildLegendaItem(
+                    color: const Color(0xFFFFB84D),
+                    borderColor: const Color(0xFFFFB84D),
+                    label: 'Selecionado',
+                    textColor: Colors.black,
+                  ),
+                ],
+              ),
+
               const SizedBox(height: 20),
 
               if (_isLoadingHorarios)
@@ -567,7 +595,9 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
                     ),
                   ),
                 )
-              else if (_horariosDisponiveis.isEmpty && _selectedDate != null)
+              else if (_selectedDate != null)
+                _buildHorariosGrid()
+              else
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -577,7 +607,7 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
                   ),
                   child: const Center(
                     child: Text(
-                      'Nenhum horário disponível para esta data',
+                      'Selecione uma data para ver os horários',
                       style: TextStyle(
                         color: Colors.grey,
                         fontSize: 14,
@@ -585,93 +615,7 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
                       textAlign: TextAlign.center,
                     ),
                   ),
-                )
-              else
-                GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 4,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 2.2,
                 ),
-                itemCount: _horariosDisponiveis.length,
-                itemBuilder: (context, index) {
-                  final horario = _horariosDisponiveis[index];
-                  final isSelected = _selectedTime == horario;
-                  
-                  return GestureDetector(
-                    onTap: () async {
-                      // Verificar disponibilidade antes de selecionar
-                      if (_selectedBarbeiro != null && _selectedDate != null) {
-                        final dataFormatada = DateFormat('yyyy-MM-dd').format(_selectedDate!);
-                        final response = await ApiService.verificarDisponibilidade(
-                          barbeiroId: _selectedBarbeiro!,
-                          dataAgendamento: dataFormatada,
-                          horario: horario,
-                        );
-                        
-                        if (response['success'] && response['disponivel']) {
-                          setState(() {
-                            _selectedTime = horario;
-                          });
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Este horário não está mais disponível'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                          _carregarHorariosDisponiveis(); // Atualizar lista
-                        }
-                      }
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      decoration: BoxDecoration(
-                        gradient: isSelected
-                            ? const LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Color(0xFFFFB84D),
-                                  Color(0xFFFF9800),
-                                ],
-                              )
-                            : null,
-                        color: isSelected ? null : const Color(0xFF1A1A1A),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isSelected
-                              ? const Color(0xFFFFB84D)
-                              : const Color(0xFF333333),
-                          width: isSelected ? 2 : 1,
-                        ),
-                        boxShadow: isSelected
-                            ? [
-                                BoxShadow(
-                                  color: const Color(0xFFFFB84D).withOpacity(0.3),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: Center(
-                        child: Text(
-                          horario,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: isSelected ? Colors.black : Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
 
               const SizedBox(height: 32),
 
@@ -885,6 +829,189 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLegendaItem({
+    required Color color,
+    required Color borderColor,
+    required String label,
+    Color? textColor,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: borderColor, width: 1),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: textColor ?? Colors.grey,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHorariosGrid() {
+    // Todos os horários possíveis da barbearia
+    const todosHorarios = [
+      '08:00', '09:00', '10:00', '11:00', '12:00',
+      '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'
+    ];
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 2.2,
+      ),
+      itemCount: todosHorarios.length,
+      itemBuilder: (context, index) {
+        final horario = todosHorarios[index];
+        final isSelected = _selectedTime == horario;
+        final isDisponivel = _horariosDisponiveis.contains(horario);
+        final isOcupado = _horariosOcupados.contains(horario);
+        
+        // Verificar se o horário já passou (apenas para hoje)
+        bool jaPassou = false;
+        if (_selectedDate != null) {
+          final hoje = DateTime.now();
+          if (_selectedDate!.day == hoje.day && 
+              _selectedDate!.month == hoje.month && 
+              _selectedDate!.year == hoje.year) {
+            final horaAtual = hoje.hour;
+            final minutoAtual = hoje.minute;
+            final [hora, minuto] = horario.split(':').map(int.parse).toList();
+            jaPassou = hora < horaAtual || (hora == horaAtual && minuto <= minutoAtual + 30);
+          }
+        }
+        
+        // Se não carregou ainda da API, considerar todos disponíveis (exceto os que já passaram)
+        final isDisponivelFallback = _horariosDisponiveis.isEmpty && _horariosOcupados.isEmpty && !jaPassou;
+        
+        return GestureDetector(
+          onTap: (isDisponivel || isDisponivelFallback) && !jaPassou ? () async {
+            // Verificar disponibilidade antes de selecionar
+            if (_selectedBarbeiro != null && _selectedDate != null) {
+              final dataFormatada = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+              final response = await ApiService.verificarDisponibilidade(
+                barbeiroId: _selectedBarbeiro!,
+                dataAgendamento: dataFormatada,
+                horario: horario,
+              );
+              
+              if (response['success'] && response['disponivel']) {
+                setState(() {
+                  _selectedTime = horario;
+                });
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Este horário não está mais disponível'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                _carregarHorariosDisponiveis(); // Atualizar lista
+              }
+            }
+          } : null,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              gradient: isSelected
+                  ? const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFFFFB84D),
+                        Color(0xFFFF9800),
+                      ],
+                    )
+                  : null,
+              color: isSelected 
+                  ? null 
+                  : isOcupado || jaPassou
+                      ? const Color(0xFF8B0000) // Vermelho escuro para ocupados
+                      : isDisponivel || isDisponivelFallback
+                          ? const Color(0xFF1A1A1A) // Cinza escuro para disponíveis
+                          : const Color(0xFF2A2A2A), // Cinza médio para indisponíveis
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isSelected
+                    ? const Color(0xFFFFB84D)
+                    : isOcupado || jaPassou
+                        ? Colors.red
+                        : const Color(0xFF333333),
+                width: isSelected ? 2 : 1,
+              ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: const Color(0xFFFFB84D).withOpacity(0.3),
+                        blurRadius: 6,
+                        offset: const Offset(0, 3),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    horario,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected 
+                          ? Colors.black 
+                          : isOcupado || jaPassou
+                              ? Colors.white70
+                              : Colors.white,
+                    ),
+                  ),
+                  if (isOcupado)
+                    const SizedBox(height: 2),
+                  if (isOcupado)
+                    const Text(
+                      'Ocupado',
+                      style: TextStyle(
+                        fontSize: 8,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  if (jaPassou && !isOcupado)
+                    const SizedBox(height: 2),
+                  if (jaPassou && !isOcupado)
+                    const Text(
+                      'Passou',
+                      style: TextStyle(
+                        fontSize: 8,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white70,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
