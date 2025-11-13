@@ -3,6 +3,7 @@ import '../models/user_model.dart';
 import '../models/servico_model.dart';
 import '../models/produto_model.dart';
 import '../services/api_service.dart';
+import 'auth_provider.dart';
 
 class AdminProvider with ChangeNotifier {
   List<UserModel> _usuarios = [];
@@ -48,12 +49,12 @@ class AdminProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> carregarUsuarios() async {
+  Future<bool> carregarUsuarios(String token) async {
     try {
       setLoading(true);
       setError(null);
 
-      final response = await ApiService.getUsuarios();
+      final response = await ApiService.getUsuariosAdmin(token);
 
       if (response['success']) {
         _usuarios = (response['usuarios'] as List)

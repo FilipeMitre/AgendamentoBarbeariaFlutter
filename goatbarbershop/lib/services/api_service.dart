@@ -480,9 +480,33 @@ class ApiService {
 
   static Future<Map<String, dynamic>> getUsuarios() async {
     try {
+      // TODO: Obter token de forma segura
+      const token = ''; 
       final response = await http.get(
         Uri.parse('$baseUrl/admin/usuarios'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro de conexão com o servidor',
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> getUsuariosAdmin(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/admin/usuarios'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
 
       return jsonDecode(response.body);

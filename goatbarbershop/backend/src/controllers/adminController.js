@@ -32,10 +32,14 @@ exports.getEstatisticasAdmin = async (req, res) => {
 // Gerenciar Usuários
 exports.getUsuarios = async (req, res) => {
   try {
+    console.log('DEBUG: Buscando usuários...');
     const [usuarios] = await db.query(
-      `SELECT id, nome, email, telefone, cpf, tipo_usuario, ativo, data_criacao 
-       FROM usuarios ORDER BY data_criacao DESC`
+      `SELECT id, nome, email, telefone, cpf, tipo_usuario, ativo, data_cadastro 
+       FROM usuarios ORDER BY data_cadastro DESC`
     );
+    
+    console.log('DEBUG: Usuários encontrados:', usuarios.length);
+    console.log('DEBUG: Primeiros 3 usuários:', usuarios.slice(0, 3));
 
     res.json({
       success: true,
@@ -84,7 +88,7 @@ exports.atualizarUsuario = async (req, res) => {
     }
 
     const [updatedUser] = await db.query(
-      `SELECT id, nome, email, telefone, cpf, tipo_usuario, ativo, data_criacao 
+      `SELECT id, nome, email, telefone, cpf, tipo_usuario, ativo, data_cadastro 
        FROM usuarios WHERE id = ?`,
       [id]
     );
@@ -109,7 +113,7 @@ exports.atualizarUsuario = async (req, res) => {
 exports.getServicos = async (req, res) => {
   try {
     const [servicos] = await db.query(
-      `SELECT id, nome, descricao, preco_base, duracao_minutos, ativo, data_criacao 
+      `SELECT id, nome, descricao, preco_base, duracao_minutos, ativo 
        FROM servicos ORDER BY nome`
     );
 
@@ -152,7 +156,7 @@ exports.adicionarServico = async (req, res) => {
     );
 
     const [newServico] = await db.query(
-      `SELECT id, nome, descricao, preco_base, duracao_minutos, ativo, data_criacao 
+      `SELECT id, nome, descricao, preco_base, duracao_minutos, ativo 
        FROM servicos WHERE id = ?`,
       [result.insertId]
     );
@@ -204,7 +208,7 @@ exports.atualizarServico = async (req, res) => {
     }
 
     const [updatedServico] = await db.query(
-      `SELECT id, nome, descricao, preco_base, duracao_minutos, ativo, data_criacao 
+      `SELECT id, nome, descricao, preco_base, duracao_minutos, ativo 
        FROM servicos WHERE id = ?`,
       [id]
     );

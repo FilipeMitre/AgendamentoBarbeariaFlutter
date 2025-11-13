@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/admin_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../models/user_model.dart';
 import 'editar_usuario_dialog.dart';
 
@@ -24,7 +25,11 @@ class _GerenciarUsuariosScreenState extends State<GerenciarUsuariosScreen> {
 
   Future<void> _carregarUsuarios() async {
     final adminProvider = Provider.of<AdminProvider>(context, listen: false);
-    await adminProvider.carregarUsuarios();
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    if (authProvider.token != null) {
+      await adminProvider.carregarUsuarios(authProvider.token!);
+    }
   }
 
   @override
