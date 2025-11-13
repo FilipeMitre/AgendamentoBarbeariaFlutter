@@ -192,12 +192,17 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
         setState(() {
           _horariosDisponiveis = List<String>.from(response['horarios']);
         });
+      } else if (mounted) {
+        // Se a API retornar sem sucesso, mostrar lista vazia
+        setState(() {
+          _horariosDisponiveis = [];
+        });
       }
     } catch (e) {
-      // Em caso de erro, usar horários padrão filtrados
+      // Em caso de erro na conexão, mostrar lista vazia para forçar retry
       if (mounted) {
         setState(() {
-          _horariosDisponiveis = _gerarHorariosPadrao();
+          _horariosDisponiveis = [];
         });
       }
     } finally {
@@ -207,29 +212,6 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
         });
       }
     }
-  }
-
-  List<String> _gerarHorariosPadrao() {
-    final horariosBase = [
-      '08:00', '09:00', '10:00', '11:00', '12:00',
-      '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'
-    ];
-
-    // Se for hoje, filtrar horários que já passaram
-    if (_selectedDate != null) {
-      final hoje = DateTime.now();
-      if (_selectedDate!.day == hoje.day && 
-          _selectedDate!.month == hoje.month && 
-          _selectedDate!.year == hoje.year) {
-        final horaAtual = hoje.hour;
-        return horariosBase.where((horario) {
-          final hora = int.parse(horario.split(':')[0]);
-          return hora > horaAtual;
-        }).toList();
-      }
-    }
-    
-    return horariosBase;
   }
 
   @override
