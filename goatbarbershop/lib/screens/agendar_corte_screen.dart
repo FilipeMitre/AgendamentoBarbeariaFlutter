@@ -213,26 +213,9 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
   }
 
   List<String> _gerarHorariosPadrao() {
-    final horariosBase = [
-      '08:00', '09:00', '10:00', '11:00', '12:00',
-      '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'
-    ];
-
-    // Se for hoje, filtrar horários que já passaram
-    if (_selectedDate != null) {
-      final hoje = DateTime.now();
-      if (_selectedDate!.day == hoje.day && 
-          _selectedDate!.month == hoje.month && 
-          _selectedDate!.year == hoje.year) {
-        final horaAtual = hoje.hour;
-        return horariosBase.where((horario) {
-          final hora = int.parse(horario.split(':')[0]);
-          return hora > horaAtual;
-        }).toList();
-      }
-    }
-    
-    return horariosBase;
+    // Este método é um fallback caso a API não retorne dados
+    // Agora que temos dados do banco, isso não deve ser chamado
+    return [];
   }
 
   @override
@@ -864,11 +847,35 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
   }
 
   Widget _buildHorariosGrid() {
-    // Todos os horários possíveis da barbearia
-    const todosHorarios = [
-      '08:00', '09:00', '10:00', '11:00', '12:00',
-      '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'
-    ];
+    // Usar os horários disponíveis retornados da API
+    // Se a API não retornou nada, mostrar mensagem
+    if (_horariosDisponiveis.isEmpty && _horariosOcupados.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF333333)),
+        ),
+        child: const Center(
+          child: Text(
+            'Nenhum horário disponível para esta data',
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 14,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    // Todos os horários possíveis do dia (incluindo ocupados)
+    final todosHorarios = [
+      ..._horariosDisponiveis,
+      ..._horariosOcupados,
+    ].toSet().toList()
+      ..sort((a, b) => a.compareTo(b));
 
     return GridView.builder(
       shrinkWrap: true,
@@ -900,11 +907,8 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
           }
         }
         
-        // Se não carregou ainda da API, considerar todos disponíveis (exceto os que já passaram)
-        final isDisponivelFallback = _horariosDisponiveis.isEmpty && _horariosOcupados.isEmpty && !jaPassou;
-        
         return GestureDetector(
-          onTap: (isDisponivel || isDisponivelFallback) && !jaPassou ? () async {
+          onTap: (isDisponivel) && !jaPassou ? () async {
             // Verificar disponibilidade antes de selecionar
             if (_selectedBarbeiro != null && _selectedDate != null) {
               final dataFormatada = DateFormat('yyyy-MM-dd').format(_selectedDate!);
@@ -946,7 +950,7 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
                   ? null 
                   : isOcupado || jaPassou
                       ? const Color(0xFF8B0000) // Vermelho escuro para ocupados
-                      : isDisponivel || isDisponivelFallback
+                      : isDisponivel
                           ? const Color(0xFF1A1A1A) // Cinza escuro para disponíveis
                           : const Color(0xFF2A2A2A), // Cinza médio para indisponíveis
               borderRadius: BorderRadius.circular(12),

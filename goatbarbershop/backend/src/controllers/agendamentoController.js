@@ -297,23 +297,105 @@ exports.getHorariosDisponiveis = async (req, res) => {
       });
     }
 
-    // Verificar se a data não é no passado
-    const dataAgendamento = new Date(data);
+    // Converter data em formato YYYY-MM-DD para objeto Date (sem timezone)
+    const [ano, mes, dia] = data.split('-').map(Number);
+    const dataAgendamento = new Date(ano, mes - 1, dia);
+    
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
     
     if (dataAgendamento < hoje) {
       return res.json({
         success: true,
-        horarios: []
+        horarios: [],
+        horarios_ocupados: []
       });
     }
 
-    // Horários padrão da barbearia (8h às 18h)
-    const horariosBase = [
-      '08:00', '09:00', '10:00', '11:00', '12:00',
-      '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'
-    ];
+    // Determinar dia da semana: getDay() retorna 0=domingo, 1=segunda, ..., 6=sábado
+    const diaSemana = dataAgendamento.getDay();
+    const diasSemanaNome = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
+    const diaSemanaStr = diasSemanaNome[diaSemana];
+
+    console.log(`DEBUG: Data: ${data}, Dia semana: ${diaSemanaStr} (index: ${diaSemana})`);
+
+    // Buscar horário de funcionamento da barbearia para este dia
+    const [horariosFuncionamento] = await db.query(
+      `SELECT horario_abertura, horario_fechamento FROM horarios_funcionamento 
+       WHERE dia_semana = ? AND ativo = TRUE`,
+      [diaSemanaStr]
+    );
+
+    if (horariosFuncionamento.length === 0) {
+      console.log(`DEBUG: Nenhum horário de funcionamento encontrado para ${diaSemanaStr}`);
+      return res.json({
+        success: true,
+        horarios: [],
+        horarios_ocupados: [],
+        message: 'Barbearia não funciona neste dia'
+      });
+    }
+
+    const horarioAbertura = horariosFuncionamento[0].horario_abertura;
+    const horarioFechamento = horariosFuncionamento[0].horario_fechamento;
+
+    console.log(`DEBUG: Barbearia abre às ${horarioAbertura} e fecha às ${horarioFechamento}`);
+
+    // Buscar intervalo de agendamento configurado (em minutos)
+    const [configIntervalo] = await db.query(
+      `SELECT CAST(valor AS UNSIGNED) as intervalo FROM configuracoes_sistema 
+       WHERE chave = 'intervalo_agendamento_minutos' LIMIT 1`
+    );
+    const intervalloMinutos = configIntervalo.length > 0 ? parseInt(configIntervalo[0].intervalo) : 30;
+
+    // Gerar lista de horários base a partir do intervalo configurado
+    const horariosBase = [];
+    const [abertura_hora, abertura_min] = horarioAbertura.split(':').map(Number);
+    const [fechamento_hora, fechamento_min] = horarioFechamento.split(':').map(Number);
+    
+    let horaAtual = abertura_hora;
+    let minutoAtual = abertura_min;
+
+    while (horaAtual < fechamento_hora || (horaAtual === fechamento_hora && minutoAtual < fechamento_min)) {
+      const horarioFormatado = `${String(horaAtual).padStart(2, '0')}:${String(minutoAtual).padStart(2, '0')}`;
+      horariosBase.push(horarioFormatado);
+
+      minutoAtual += intervalloMinutos;
+      if (minutoAtual >= 60) {
+        horaAtual += Math.floor(minutoAtual / 60);
+        minutoAtual = minutoAtual % 60;
+      }
+    }
+
+    console.log('DEBUG: Horários gerados a partir do banco:', horariosBase);
+
+    // Buscar disponibilidade do barbeiro para este dia e hora
+    const [disponibilidadeBarbeiro] = await db.query(
+      `SELECT horario FROM disponibilidade_barbeiro 
+       WHERE barbeiro_id = ? 
+       AND dia_semana = ? 
+       AND ativo = TRUE
+       ORDER BY horario`,
+      [barbeiro_id, diaSemanaStr]
+    );
+
+    const horariosDisponicaoFormatados = disponibilidadeBarbeiro.map(d => {
+      const horario = d.horario;
+      if (typeof horario === 'string') {
+        return horario.substring(0, 5); // Pegar apenas HH:MM
+      }
+      return horario;
+    });
+
+    console.log(`DEBUG: Barbeiro ${barbeiro_id} tem ${horariosDisponicaoFormatados.length} horários disponíveis:`, horariosDisponicaoFormatados);
+    console.log('DEBUG: Horários base gerados:', horariosBase);
+
+    // Filtrar apenas horários onde o barbeiro está disponível
+    let horariosValidos = horariosBase.filter(h => horariosDisponicaoFormatados.includes(h));
+
+    console.log('DEBUG: Horários válidos após filtro:', horariosValidos);
+
+    console.log('DEBUG: Horários válidos (após filtrar disponibilidade):', horariosValidos);
 
     // Buscar agendamentos já marcados
     const [agendamentosOcupados] = await db.query(
@@ -325,7 +407,6 @@ exports.getHorariosDisponiveis = async (req, res) => {
     );
 
     const horariosOcupados = agendamentosOcupados.map(a => {
-      // Converter TIME para string no formato HH:MM
       const horario = a.horario;
       if (typeof horario === 'string') {
         return horario.substring(0, 5); // Pegar apenas HH:MM
@@ -336,25 +417,31 @@ exports.getHorariosDisponiveis = async (req, res) => {
     console.log('DEBUG: Horários ocupados encontrados:', horariosOcupados);
 
     // Se for hoje, filtrar horários que já passaram
-    let horariosDisponiveis = horariosBase;
     if (dataAgendamento.toDateString() === hoje.toDateString()) {
       const agora = new Date();
       const horaAtual = agora.getHours();
       const minutoAtual = agora.getMinutes();
       
-      horariosDisponiveis = horariosBase.filter(horario => {
+      horariosValidos = horariosValidos.filter(horario => {
         const [hora, minuto] = horario.split(':').map(Number);
         return hora > horaAtual || (hora === horaAtual && minuto > minutoAtual + 30); // 30min de antecedência
       });
+
+      console.log(`DEBUG: Após filtrar horários passados (agora é ${horaAtual}:${minutoAtual}):`, horariosValidos);
     }
 
     // Remover horários ocupados
-    horariosDisponiveis = horariosDisponiveis.filter(h => !horariosOcupados.includes(h));
+    const horariosDisponiveis = horariosValidos.filter(h => !horariosOcupados.includes(h));
+
+    console.log('DEBUG: Horários finalmente disponíveis:', horariosDisponiveis);
 
     res.json({
       success: true,
       horarios: horariosDisponiveis,
-      horarios_ocupados: horariosOcupados
+      horarios_ocupados: horariosOcupados,
+      intervalo_minutos: intervalloMinutos,
+      horario_abertura: horarioAbertura,
+      horario_fechamento: horarioFechamento
     });
 
   } catch (error) {
@@ -379,19 +466,102 @@ exports.getDiasDisponiveis = async (req, res) => {
       });
     }
 
+    // Buscar intervalo de agendamento configurado
+    const [configIntervalo] = await db.query(
+      `SELECT CAST(valor AS UNSIGNED) as intervalo FROM configuracoes_sistema 
+       WHERE chave = 'intervalo_agendamento_minutos' LIMIT 1`
+    );
+    const intervalloMinutos = configIntervalo.length > 0 ? parseInt(configIntervalo[0].intervalo) : 30;
+
     const diasDisponiveis = [];
     const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0); // Zerar horas para comparação correta
+    hoje.setHours(0, 0, 0, 0);
+    const diasSemanaNome = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
     
     // Gerar próximos 45 dias para garantir 30 dias úteis
     for (let i = 0; i < 45; i++) {
       const data = new Date(hoje);
       data.setDate(hoje.getDate() + i);
       
+      const diaSemana = data.getDay();
       // Pular domingos (0 = domingo)
-      if (data.getDay() === 0) continue;
+      if (diaSemana === 0) continue;
       
-      // Verificar se tem pelo menos um horário disponível
+      const diaSemanaStr = diasSemanaNome[diaSemana];
+
+      console.log(`DEBUG getDiasDisponiveis: Processando ${data.toDateString()} - ${diaSemanaStr}`);
+
+      // Buscar horário de funcionamento para este dia
+      const [horariosFuncionamento] = await db.query(
+        `SELECT horario_abertura, horario_fechamento FROM horarios_funcionamento 
+         WHERE dia_semana = ? AND ativo = TRUE`,
+        [diaSemanaStr]
+      );
+
+      if (horariosFuncionamento.length === 0) {
+        console.log(`DEBUG: Sem funcionamento para ${diaSemanaStr}`);
+        continue; // Dia não funciona
+      }
+
+      const horarioAbertura = horariosFuncionamento[0].horario_abertura;
+      const horarioFechamento = horariosFuncionamento[0].horario_fechamento;
+
+      // Calcular total de horários possíveis para este dia
+      const [abertura_hora, abertura_min] = horarioAbertura.split(':').map(Number);
+      const [fechamento_hora, fechamento_min] = horarioFechamento.split(':').map(Number);
+      
+      let totalHorariosPossiveis = 0;
+      let horaAtual = abertura_hora;
+      let minutoAtual = abertura_min;
+
+      while (horaAtual < fechamento_hora || (horaAtual === fechamento_hora && minutoAtual < fechamento_min)) {
+        totalHorariosPossiveis++;
+        minutoAtual += intervalloMinutos;
+        if (minutoAtual >= 60) {
+          horaAtual += Math.floor(minutoAtual / 60);
+          minutoAtual = minutoAtual % 60;
+        }
+      }
+
+      // Verificar disponibilidade do barbeiro
+      const [disponibilidadeBarbeiro] = await db.query(
+        `SELECT COUNT(DISTINCT horario) as total_horarios FROM disponibilidade_barbeiro 
+         WHERE barbeiro_id = ? 
+         AND dia_semana = ? 
+         AND ativo = TRUE`,
+        [barbeiro_id, diaSemanaStr]
+      );
+
+      let horariosDisponiveis = totalHorariosPossiveis;
+      
+      // Se for hoje, considerar apenas horários futuros
+      const agora = new Date();
+      const dataAtual = new Date();
+      dataAtual.setHours(0, 0, 0, 0);
+      
+      if (data.getTime() === dataAtual.getTime()) {
+        const horaAtual = agora.getHours();
+        const minutoAtual = agora.getMinutes();
+        
+        // Recalcular horários disponíveis apenas até o fechamento e após horário atual
+        horariosDisponiveis = 0;
+        let hora = abertura_hora;
+        let minuto = abertura_min;
+        
+        while (hora < fechamento_hora || (hora === fechamento_hora && minuto < fechamento_min)) {
+          // Só contar se for no futuro (30min de antecedência)
+          if (hora > horaAtual || (hora === horaAtual && minuto > minutoAtual + 30)) {
+            horariosDisponiveis++;
+          }
+          minuto += intervalloMinutos;
+          if (minuto >= 60) {
+            hora += Math.floor(minuto / 60);
+            minuto = minuto % 60;
+          }
+        }
+      }
+
+      // Buscar agendamentos para este dia
       const dataFormatada = data.toISOString().split('T')[0];
       const [agendamentos] = await db.query(
         `SELECT COUNT(*) as total FROM agendamentos 
@@ -402,31 +572,14 @@ exports.getDiasDisponiveis = async (req, res) => {
       );
 
       const totalAgendamentos = agendamentos[0].total;
-      const horariosBase = 11; // 8h às 18h = 11 horários
-      
-      // Se for hoje, considerar apenas horários futuros
-      let horariosDisponiveis = horariosBase;
-      const agora = new Date();
-      const dataAtual = new Date();
-      dataAtual.setHours(0, 0, 0, 0);
-      
-      if (data.getTime() === dataAtual.getTime()) {
-        const horaAtual = agora.getHours();
-        const minutoAtual = agora.getMinutes();
-        
-        // Contar quantos horários ainda estão disponíveis hoje
-        const horariosHoje = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'];
-        horariosDisponiveis = horariosHoje.filter(horario => {
-          const [hora, minuto] = horario.split(':').map(Number);
-          return hora > horaAtual || (hora === horaAtual && minuto > minutoAtual + 30);
-        }).length;
-      }
 
-      if (totalAgendamentos < horariosDisponiveis) {
+      // Adicionar se houver horários livres
+      if (totalAgendamentos < horariosDisponiveis && disponibilidadeBarbeiro[0].total_horarios > 0) {
         diasDisponiveis.push({
           data: dataFormatada,
-          dia_semana: data.getDay(),
-          horarios_livres: horariosDisponiveis - totalAgendamentos
+          dia_semana: diaSemana,
+          horarios_livres: horariosDisponiveis - totalAgendamentos,
+          total_horarios_possiveis: horariosDisponiveis
         });
       }
 
@@ -435,7 +588,8 @@ exports.getDiasDisponiveis = async (req, res) => {
 
     res.json({
       success: true,
-      dias: diasDisponiveis
+      dias: diasDisponiveis,
+      intervalo_minutos: intervalloMinutos
     });
 
   } catch (error) {
@@ -451,26 +605,65 @@ exports.getDiasDisponiveis = async (req, res) => {
 // Verificar disponibilidade de um horário específico
 exports.verificarDisponibilidade = async (req, res) => {
   try {
-    const { barbeiro_id, data, horario } = req.query;
+    const { barbeiro_id, data_agendamento, horario } = req.query;
 
-    if (!barbeiro_id || !data || !horario) {
+    if (!barbeiro_id || !data_agendamento || !horario) {
       return res.status(400).json({
         success: false,
         message: 'Barbeiro, data e horário são obrigatórios'
       });
     }
 
-    // Verificar se não é no passado
-    const dataAgendamento = new Date(data + ' ' + horario);
-    const agora = new Date();
+    // Converter data em formato YYYY-MM-DD
+    const [ano, mes, dia] = data_agendamento.split('-').map(Number);
+    const dataObj = new Date(ano, mes - 1, dia);
     
-    if (dataAgendamento <= agora) {
+    // Verificar se não é no passado
+    const agora = new Date();
+    agora.setHours(0, 0, 0, 0);
+    
+    if (dataObj < agora) {
       return res.json({
-        success: false,
+        success: true,
         disponivel: false,
-        message: 'Horário no passado'
+        message: 'Data no passado'
       });
     }
+
+    // Verificar se é hoje e o horário já passou
+    const hoje = new Date();
+    const dataAtual = new Date();
+    dataAtual.setHours(0, 0, 0, 0);
+    
+    if (dataObj.getTime() === dataAtual.getTime()) {
+      const [horaStr, minutoStr] = horario.split(':').map(Number);
+      if (hoje.getHours() > horaStr || (hoje.getHours() === horaStr && hoje.getMinutes() > minutoStr)) {
+        return res.json({
+          success: true,
+          disponivel: false,
+          message: 'Horário já passou'
+        });
+      }
+    }
+
+    // Determinar dia da semana
+    const diaSemana = dataObj.getDay();
+    const diasSemanaNome = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
+    const diaSemanaStr = diasSemanaNome[diaSemana];
+
+    console.log(`DEBUG verificarDisponibilidade: Data: ${data_agendamento}, DiaSemana: ${diaSemanaStr}, Barbeiro: ${barbeiro_id}, Horário: ${horario}`);
+
+    // Verificar se barbeiro tem disponibilidade neste dia e horário
+    const [disponibilidade] = await db.query(
+      `SELECT id FROM disponibilidade_barbeiro 
+       WHERE barbeiro_id = ? 
+       AND dia_semana = ? 
+       AND horario = ? 
+       AND ativo = TRUE`,
+      [barbeiro_id, diaSemanaStr, horario]
+    );
+
+    console.log(`DEBUG: Query resultado - Encontrados ${disponibilidade.length} registros`);
 
     // Verificar se já está ocupado
     const [agendamentos] = await db.query(
@@ -479,10 +672,12 @@ exports.verificarDisponibilidade = async (req, res) => {
        AND data_agendamento = ? 
        AND horario = ? 
        AND status IN ('confirmado', 'concluido')`,
-      [barbeiro_id, data, horario]
+      [barbeiro_id, data_agendamento, horario]
     );
 
     const disponivel = agendamentos.length === 0;
+
+    console.log(`DEBUG: Verificação de disponibilidade - Barbeiro: ${barbeiro_id}, Data: ${data_agendamento}, Horário: ${horario}, Disponível: ${disponivel}`);
 
     res.json({
       success: true,

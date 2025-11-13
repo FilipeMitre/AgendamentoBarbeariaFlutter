@@ -176,7 +176,7 @@ class ApiService {
   }) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/agendamentos/verificar-disponibilidade?barbeiro_id=$barbeiroId&data=$dataAgendamento&horario=$horario'),
+        Uri.parse('$baseUrl/agendamentos/verificar-disponibilidade?barbeiro_id=$barbeiroId&data_agendamento=$dataAgendamento&horario=$horario'),
         headers: {'Content-Type': 'application/json'},
       );
 
