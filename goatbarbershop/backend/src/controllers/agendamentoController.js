@@ -298,19 +298,10 @@ exports.getHorariosDisponiveis = async (req, res) => {
     }
 
     // Verificar se a data não é no passado
-    // Parsear explicitamente YYYY-MM-DD como data LOCAL para evitar deslocamento de fuso
-    // (new Date('YYYY-MM-DD') pode ser interpretado como UTC em algumas plataformas)
-    const parts = String(data).split('-').map(Number);
-    if (parts.length < 3) {
-      return res.status(400).json({ success: false, message: 'Data inválida' });
-    }
-    const [year, month, day] = parts;
-    const dataAgendamento = new Date(year, month - 1, day);
-    dataAgendamento.setHours(0, 0, 0, 0);
-
+    const dataAgendamento = new Date(data);
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
-
+    
     if (dataAgendamento < hoje) {
       return res.json({
         success: true,
@@ -318,60 +309,40 @@ exports.getHorariosDisponiveis = async (req, res) => {
       });
     }
 
-    // Mapear weekday do JavaScript para dia_semana do banco
-    // JS: 0=Sunday, 1=Monday, ..., 6=Saturday
-    // DB: domingo, segunda, terca, quarta, quinta, sexta, sabado
-    const diasSemana = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
-    const diaSemanaDb = diasSemana[dataAgendamento.getDay()];
-
-    // Buscar horários de disponibilidade do barbeiro para este dia da semana
-    const [disponibilidades] = await db.query(
-      `SELECT horario FROM disponibilidade_barbeiro 
-       WHERE barbeiro_id = ? 
-       AND dia_semana = ? 
-       AND ativo = TRUE
-       ORDER BY horario ASC`,
-      [barbeiro_id, diaSemanaDb]
-    );
-
-    console.log(`DEBUG getHorariosDisponiveis - barbeiro_id: ${barbeiro_id}, dia: ${diaSemanaDb}, data: ${data}`);
-    console.log(`DEBUG - Horários encontrados no BD: ${disponibilidades.length}`, disponibilidades);
-
-    if (disponibilidades.length === 0) {
-      // Barbeiro não trabalha neste dia
-      console.log(`DEBUG - Barbeiro ${barbeiro_id} não trabalha em ${diaSemanaDb}`);
-      return res.json({
-        success: true,
-        horarios: []
-      });
-    }
-
-    // Converter para array de strings no formato HH:MM
-    let horariosDisponiveis = disponibilidades.map(d => {
-      const hora = String(d.horario).padStart(8, '0'); // Garante formato HH:MM:SS
-      return hora.substring(0, 5); // Pega HH:MM
-    });
-    
-    console.log(`DEBUG - Horários disponíveis formatados:`, horariosDisponiveis);
+    // Horários padrão da barbearia (8h às 18h)
+    const horariosBase = [
+      '08:00', '09:00', '10:00', '11:00', '12:00',
+      '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'
+    ];
 
     // Buscar agendamentos já marcados
     const [agendamentosOcupados] = await db.query(
-      `SELECT TIME_FORMAT(horario, '%H:%i') as horario FROM agendamentos 
+      `SELECT horario FROM agendamentos 
        WHERE barbeiro_id = ? 
        AND data_agendamento = ? 
-       AND status NOT IN ('cancelado')`,
+       AND status IN ('confirmado', 'concluido')`,
       [barbeiro_id, data]
     );
 
-    const horariosOcupados = agendamentosOcupados.map(a => a.horario);
+    const horariosOcupados = agendamentosOcupados.map(a => {
+      // Converter TIME para string no formato HH:MM
+      const horario = a.horario;
+      if (typeof horario === 'string') {
+        return horario.substring(0, 5); // Pegar apenas HH:MM
+      }
+      return horario;
+    });
+    
+    console.log('DEBUG: Horários ocupados encontrados:', horariosOcupados);
 
     // Se for hoje, filtrar horários que já passaram
+    let horariosDisponiveis = horariosBase;
     if (dataAgendamento.toDateString() === hoje.toDateString()) {
       const agora = new Date();
       const horaAtual = agora.getHours();
       const minutoAtual = agora.getMinutes();
       
-      horariosDisponiveis = horariosDisponiveis.filter(horario => {
+      horariosDisponiveis = horariosBase.filter(horario => {
         const [hora, minuto] = horario.split(':').map(Number);
         return hora > horaAtual || (hora === horaAtual && minuto > minutoAtual + 30); // 30min de antecedência
       });
@@ -382,7 +353,8 @@ exports.getHorariosDisponiveis = async (req, res) => {
 
     res.json({
       success: true,
-      horarios: horariosDisponiveis
+      horarios: horariosDisponiveis,
+      horarios_ocupados: horariosOcupados
     });
 
   } catch (error) {
@@ -409,44 +381,45 @@ exports.getDiasDisponiveis = async (req, res) => {
 
     const diasDisponiveis = [];
     const hoje = new Date();
-
-    // Gerar próximos 45 dias (excluindo domingos)
+    hoje.setHours(0, 0, 0, 0); // Zerar horas para comparação correta
+    
+    // Gerar próximos 45 dias para garantir 30 dias úteis
     for (let i = 0; i < 45; i++) {
       const data = new Date(hoje);
       data.setDate(hoje.getDate() + i);
-
+      
       // Pular domingos (0 = domingo)
       if (data.getDay() === 0) continue;
-
-      // Formatar YYYY-MM-DD usando data local para evitar shifts de fuso
-      const yyyy = data.getFullYear();
-      const mm = String(data.getMonth() + 1).padStart(2, '0');
-      const dd = String(data.getDate()).padStart(2, '0');
-      const dataFormatada = `${yyyy}-${mm}-${dd}`;
-
-      // Debug: log da data gerada
-      // console.log(`DEBUG getDiasDisponiveis - gerada: ${dataFormatada} (weekday=${data.getDay()})`);
-
+      
       // Verificar se tem pelo menos um horário disponível
+      const dataFormatada = data.toISOString().split('T')[0];
       const [agendamentos] = await db.query(
         `SELECT COUNT(*) as total FROM agendamentos 
          WHERE barbeiro_id = ? 
          AND data_agendamento = ? 
-         AND status NOT IN ('cancelado')`,
+         AND status IN ('confirmado', 'concluido')`,
         [barbeiro_id, dataFormatada]
       );
 
       const totalAgendamentos = agendamentos[0].total;
-
-      // Estimativa de slots (este valor não precisa ser exato quando o front pede horários reais)
-      const horariosBaseEstimado = 11; // valor conservador
-
+      const horariosBase = 11; // 8h às 18h = 11 horários
+      
       // Se for hoje, considerar apenas horários futuros
-      let horariosDisponiveis = horariosBaseEstimado;
-      if (data.toDateString() === hoje.toDateString()) {
-        const agora = new Date();
+      let horariosDisponiveis = horariosBase;
+      const agora = new Date();
+      const dataAtual = new Date();
+      dataAtual.setHours(0, 0, 0, 0);
+      
+      if (data.getTime() === dataAtual.getTime()) {
         const horaAtual = agora.getHours();
-        horariosDisponiveis = Math.max(0, 18 - Math.max(8, horaAtual + 1));
+        const minutoAtual = agora.getMinutes();
+        
+        // Contar quantos horários ainda estão disponíveis hoje
+        const horariosHoje = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'];
+        horariosDisponiveis = horariosHoje.filter(horario => {
+          const [hora, minuto] = horario.split(':').map(Number);
+          return hora > horaAtual || (hora === horaAtual && minuto > minutoAtual + 30);
+        }).length;
       }
 
       if (totalAgendamentos < horariosDisponiveis) {
@@ -505,7 +478,7 @@ exports.verificarDisponibilidade = async (req, res) => {
        WHERE barbeiro_id = ? 
        AND data_agendamento = ? 
        AND horario = ? 
-       AND status NOT IN ('cancelado')`,
+       AND status IN ('confirmado', 'concluido')`,
       [barbeiro_id, data, horario]
     );
 
