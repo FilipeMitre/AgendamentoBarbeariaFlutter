@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/admin_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../models/servico_model.dart';
 import 'adicionar_servico_dialog.dart';
 import 'editar_servico_dialog.dart';
@@ -22,7 +23,11 @@ class _GerenciarServicosScreenState extends State<GerenciarServicosScreen> {
 
   Future<void> _carregarServicos() async {
     final adminProvider = Provider.of<AdminProvider>(context, listen: false);
-    await adminProvider.carregarServicos();
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    if (authProvider.token != null) {
+      await adminProvider.carregarServicos(authProvider.token!);
+    }
   }
 
   @override

@@ -24,7 +24,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _carregarDashboard() async {
     final adminProvider = Provider.of<AdminProvider>(context, listen: false);
-    await adminProvider.fetchAdminDashboard();
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    if (authProvider.token != null) {
+      await adminProvider.fetchAdminDashboard(authProvider.token!);
+    }
   }
 
   @override

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../models/produto_model.dart';
 import '../../providers/admin_provider.dart';
+import '../../providers/auth_provider.dart';
 
 class EditarProdutoDialog extends StatefulWidget {
   final ProdutoModel produto;
@@ -48,6 +49,7 @@ class _EditarProdutoDialogState extends State<EditarProdutoDialog> {
       });
 
       final adminProvider = Provider.of<AdminProvider>(context, listen: false);
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
       final preco = double.tryParse(_precoController.text.replaceAll(',', '.')) ?? 0;
       final estoque = int.tryParse(_estoqueController.text) ?? 0;
@@ -58,6 +60,7 @@ class _EditarProdutoDialogState extends State<EditarProdutoDialog> {
         preco,
         estoque,
         _ativo,
+        authProvider.token!,
       );
 
       if (mounted) {

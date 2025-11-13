@@ -444,16 +444,16 @@ class ApiService {
   }
 
   // Métodos Admin
-  static Future<Map<String, dynamic>> getAdminDashboard() async {
+  static Future<Map<String, dynamic>> getAdminDashboard([String? token]) async {
     try {
-      // TODO: Obter token de forma segura
-      const token = ''; 
+      final headers = {'Content-Type': 'application/json'};
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+      
       final response = await http.get(
-        Uri.parse('$baseUrl/dashboard/admin'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
+        Uri.parse('$baseUrl/admin/estatisticas'),
+        headers: headers,
       );
       return jsonDecode(response.body);
     } catch (e) {
@@ -522,11 +522,15 @@ class ApiService {
     int usuarioId,
     String tipo,
     bool ativo,
+    String token,
   ) async {
     try {
       final response = await http.put(
         Uri.parse('$baseUrl/admin/usuarios/$usuarioId'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({
           'tipo_usuario': tipo,
           'ativo': ativo,
@@ -542,11 +546,16 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> getServicos() async {
+  static Future<Map<String, dynamic>> getServicos([String? token]) async {
     try {
+      final headers = {'Content-Type': 'application/json'};
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+      
       final response = await http.get(
         Uri.parse('$baseUrl/admin/servicos'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
       );
 
       return jsonDecode(response.body);
@@ -580,11 +589,15 @@ class ApiService {
     String descricao,
     double preco,
     int duracao,
+    String token,
   ) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/admin/servicos'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({
           'nome': nome,
           'descricao': descricao,
@@ -609,11 +622,15 @@ class ApiService {
     double preco,
     int duracao,
     bool ativo,
+    String token,
   ) async {
     try {
       final response = await http.put(
         Uri.parse('$baseUrl/admin/servicos/$servicoId'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({
           'nome': nome,
           'descricao': descricao,
@@ -632,11 +649,16 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> getProdutosAdmin() async {
+  static Future<Map<String, dynamic>> getProdutosAdmin([String? token]) async {
     try {
+      final headers = {'Content-Type': 'application/json'};
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+      
       final response = await http.get(
         Uri.parse('$baseUrl/admin/produtos'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
       );
 
       return jsonDecode(response.body);
@@ -654,11 +676,15 @@ class ApiService {
     double preco,
     int estoque,
     bool ativo,
+    String token,
   ) async {
     try {
       final response = await http.put(
         Uri.parse('$baseUrl/admin/produtos/$produtoId'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({
           'nome': nome,
           'preco': preco,
@@ -675,4 +701,5 @@ class ApiService {
       };
     }
   }
+
 }

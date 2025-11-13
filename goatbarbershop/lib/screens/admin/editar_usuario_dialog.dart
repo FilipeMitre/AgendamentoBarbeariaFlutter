@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/admin_provider.dart';
+import '../../providers/auth_provider.dart';
 
 class EditarUsuarioDialog extends StatefulWidget {
   final UserModel usuario;
@@ -33,11 +34,13 @@ class _EditarUsuarioDialogState extends State<EditarUsuarioDialog> {
     });
 
     final adminProvider = Provider.of<AdminProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     final sucesso = await adminProvider.atualizarUsuario(
       widget.usuario.id!,
       _tipoSelecionado,
       _ativo,
+      authProvider.token!,
     );
 
     if (mounted) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/admin_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../models/produto_model.dart';
 import 'editar_produto_dialog.dart';
 
@@ -23,7 +24,11 @@ class _GerenciarProdutosScreenState extends State<GerenciarProdutosScreen> {
 
   Future<void> _carregarProdutos() async {
     final adminProvider = Provider.of<AdminProvider>(context, listen: false);
-    await adminProvider.carregarProdutos();
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    if (authProvider.token != null) {
+      await adminProvider.carregarProdutos(authProvider.token!);
+    }
   }
 
   @override

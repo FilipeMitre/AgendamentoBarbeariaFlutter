@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../models/servico_model.dart';
 import '../../providers/admin_provider.dart';
+import '../../providers/auth_provider.dart';
 
 class EditarServicoDialog extends StatefulWidget {
   final ServicoModel servico;
@@ -51,6 +52,7 @@ class _EditarServicoDialogState extends State<EditarServicoDialog> {
       });
 
       final adminProvider = Provider.of<AdminProvider>(context, listen: false);
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
       final preco = double.tryParse(_precoController.text.replaceAll(',', '.')) ?? 0;
       final duracao = int.tryParse(_duracaoController.text) ?? 0;
@@ -62,6 +64,7 @@ class _EditarServicoDialogState extends State<EditarServicoDialog> {
         preco,
         duracao,
         _ativo,
+        authProvider.token!,
       );
 
       if (mounted) {

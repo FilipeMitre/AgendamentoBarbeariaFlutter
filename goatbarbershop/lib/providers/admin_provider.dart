@@ -32,13 +32,18 @@ class AdminProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> fetchAdminDashboard() async {
+  Future<void> fetchAdminDashboard([String? token]) async {
     try {
       setLoading(true);
       setError(null);
-      final response = await ApiService.getAdminDashboard();
+      final response = await ApiService.getAdminDashboard(token);
       if (response['success']) {
-        _dashboardData = response['data'];
+        _dashboardData = {
+          'totalUsuarios': response['total_usuarios'],
+          'totalAgendamentos': response['total_agendamentos'],
+          'receitaTotal': response['receita_total'],
+          'totalProdutos': response['total_produtos'],
+        };
       } else {
         setError(response['message']);
       }
@@ -74,12 +79,12 @@ class AdminProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> atualizarUsuario(int usuarioId, String tipo, bool ativo) async {
+  Future<bool> atualizarUsuario(int usuarioId, String tipo, bool ativo, String token) async {
     try {
       setLoading(true);
       setError(null);
 
-      final response = await ApiService.atualizarUsuario(usuarioId, tipo, ativo);
+      final response = await ApiService.atualizarUsuario(usuarioId, tipo, ativo, token);
 
       if (response['success']) {
         // Atualizar localmente
@@ -101,12 +106,12 @@ class AdminProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> carregarServicos() async {
+  Future<bool> carregarServicos([String? token]) async {
     try {
       setLoading(true);
       setError(null);
 
-      final response = await ApiService.getServicos();
+      final response = await ApiService.getServicos(token);
 
       if (response['success']) {
         _servicos = (response['servicos'] as List)
@@ -126,12 +131,12 @@ class AdminProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> adicionarServico(String nome, String descricao, double preco, int duracao) async {
+  Future<bool> adicionarServico(String nome, String descricao, double preco, int duracao, String token) async {
     try {
       setLoading(true);
       setError(null);
 
-      final response = await ApiService.adicionarServico(nome, descricao, preco, duracao);
+      final response = await ApiService.adicionarServico(nome, descricao, preco, duracao, token);
 
       if (response['success']) {
         _servicos.add(ServicoModel.fromJson(response['servico']));
@@ -149,12 +154,12 @@ class AdminProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> atualizarServico(int servicoId, String nome, String descricao, double preco, int duracao, bool ativo) async {
+  Future<bool> atualizarServico(int servicoId, String nome, String descricao, double preco, int duracao, bool ativo, String token) async {
     try {
       setLoading(true);
       setError(null);
 
-      final response = await ApiService.atualizarServico(servicoId, nome, descricao, preco, duracao, ativo);
+      final response = await ApiService.atualizarServico(servicoId, nome, descricao, preco, duracao, ativo, token);
 
       if (response['success']) {
         final index = _servicos.indexWhere((s) => s.id == servicoId);
@@ -175,12 +180,12 @@ class AdminProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> carregarProdutos() async {
+  Future<bool> carregarProdutos([String? token]) async {
     try {
       setLoading(true);
       setError(null);
 
-      final response = await ApiService.getProdutosAdmin();
+      final response = await ApiService.getProdutosAdmin(token);
 
       if (response['success']) {
         _produtos = (response['produtos'] as List)
@@ -200,12 +205,12 @@ class AdminProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> atualizarProduto(int produtoId, String nome, double preco, int estoque, bool ativo) async {
+  Future<bool> atualizarProduto(int produtoId, String nome, double preco, int estoque, bool ativo, String token) async {
     try {
       setLoading(true);
       setError(null);
 
-      final response = await ApiService.atualizarProduto(produtoId, nome, preco, estoque, ativo);
+      final response = await ApiService.atualizarProduto(produtoId, nome, preco, estoque, ativo, token);
 
       if (response['success']) {
         final index = _produtos.indexWhere((p) => p.id == produtoId);
