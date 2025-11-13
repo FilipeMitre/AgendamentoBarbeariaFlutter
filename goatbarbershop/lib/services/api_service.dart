@@ -241,12 +241,16 @@ class ApiService {
   static Future<Map<String, dynamic>> getAgendamentosBarbeiro(
     int barbeiroId,
     DateTime data,
+    String token,
   ) async {
     try {
       final dataFormatada = '${data.year}-${data.month.toString().padLeft(2, '0')}-${data.day.toString().padLeft(2, '0')}';
       final response = await http.get(
         Uri.parse('$baseUrl/barbeiro/$barbeiroId/agendamentos?data=$dataFormatada'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
 
       return jsonDecode(response.body);
@@ -296,11 +300,14 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> concluirAgendamento(int agendamentoId) async {
+  static Future<Map<String, dynamic>> concluirAgendamento(int agendamentoId, String token) async {
     try {
       final response = await http.put(
-        Uri.parse('$baseUrl/agendamentos/$agendamentoId/concluir'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse('$baseUrl/barbeiro/agendamentos/$agendamentoId/concluir'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
 
       return jsonDecode(response.body);
@@ -339,11 +346,15 @@ class ApiService {
   static Future<Map<String, dynamic>> cancelarAgendamentoBarbeiro(
     int agendamentoId,
     String motivo,
+    String token,
   ) async {
     try {
       final response = await http.put(
-        Uri.parse('$baseUrl/agendamentos/$agendamentoId/cancelar'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse('$baseUrl/barbeiro/agendamentos/$agendamentoId/cancelar'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({'motivo': motivo}),
       );
 
@@ -355,6 +366,83 @@ class ApiService {
       };
     }
   }
+
+  // Inicializar dados do barbeiro
+  static Future<Map<String, dynamic>> inicializarDadosBarbeiro(
+    int barbeiroId,
+    String token,
+  ) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/barbeiro/$barbeiroId/inicializar'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro de conexão com o servidor',
+      };
+    }
+  }
+
+  // Obter todos os agendamentos do barbeiro
+  static Future<Map<String, dynamic>> getTodosAgendamentosBarbeiro(
+    int barbeiroId,
+    String token,
+  ) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/barbeiro/$barbeiroId/agendamentos/todos'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro de conexão com o servidor',
+      };
+    }
+  }
+
+  // Obter estatísticas do barbeiro
+  static Future<Map<String, dynamic>> getEstatisticasBarbeiro(
+    int barbeiroId,
+    String token, {
+    String? dataInicio,
+    String? dataFim,
+  }) async {
+    try {
+      String url = '$baseUrl/barbeiro/$barbeiroId/estatisticas';
+      if (dataInicio != null && dataFim != null) {
+        url += '?data_inicio=$dataInicio&data_fim=$dataFim';
+      }
+      
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro de conexão com o servidor',
+      };
+    }
+  }
+
   // Métodos Admin
   static Future<Map<String, dynamic>> getAdminDashboard() async {
     try {

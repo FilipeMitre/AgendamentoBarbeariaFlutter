@@ -1,20 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../models/agendamento_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/api_service.dart';
 
-class DetalhesAgendamentoBarbeiroDialog extends StatelessWidget {
+class DetalhesAgendamentoBarbeiroDialog extends StatefulWidget {
   final AgendamentoModel agendamento;
+  final VoidCallback? onUpdate;
 
   const DetalhesAgendamentoBarbeiroDialog({
     super.key,
     required this.agendamento,
+    this.onUpdate,
   });
 
   @override
+  State<DetalhesAgendamentoBarbeiroDialog> createState() => _DetalhesAgendamentoBarbeiroDialogState();
+}
+
+class _DetalhesAgendamentoBarbeiroDialogState extends State<DetalhesAgendamentoBarbeiroDialog> {
+
+  @override
   Widget build(BuildContext context) {
-    final isConcluido = agendamento.status == 'concluido';
+    final isConcluido = widget.agendamento.status == 'concluido';
     final dataFormatada = DateFormat('EEEE', 'pt_BR')
-        .format(agendamento.dataAgendamento)
+        .format(widget.agendamento.dataAgendamento)
         .toUpperCase()
         .substring(0, 3);
 
@@ -47,7 +58,7 @@ class DetalhesAgendamentoBarbeiroDialog extends StatelessWidget {
                   child: Column(
                     children: [
                       Text(
-                        agendamento.dataAgendamento.day.toString(),
+                        widget.agendamento.dataAgendamento.day.toString(),
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
@@ -67,7 +78,7 @@ class DetalhesAgendamentoBarbeiroDialog extends StatelessWidget {
                 ),
                 const SizedBox(width: 16),
                 Text(
-                  agendamento.horario,
+                  widget.agendamento.horario,
                   style: const TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.w700,
@@ -125,7 +136,7 @@ class DetalhesAgendamentoBarbeiroDialog extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          agendamento.servicoNome,
+                          widget.agendamento.servicoNome,
                           style: const TextStyle(
                             fontSize: 12,
                             color: Colors.grey,
@@ -160,7 +171,7 @@ class DetalhesAgendamentoBarbeiroDialog extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Epaminondas Da Silva Junior', // Virá do agendamento
+                      widget.agendamento.clienteNome ?? 'Cliente não informado',
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -181,10 +192,7 @@ class DetalhesAgendamentoBarbeiroDialog extends StatelessWidget {
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // TODO: Marcar como concluído
-                    Navigator.pop(context);
-                  },
+                  onPressed: () => _concluirAgendamento(),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4CAF50),
                   ),
@@ -238,6 +246,83 @@ class DetalhesAgendamentoBarbeiroDialog extends StatelessWidget {
     );
   }
 
+  Future<void> _concluirAgendamento() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    if (authProvider.token == null) return;
+
+    try {
+      final response = await ApiService.concluirAgendamento(
+        widget.agendamento.id!,
+        authProvider.token!,
+      );
+
+      if (response['success'] == true && mounted) {
+        Navigator.pop(context);
+        widget.onUpdate?.call();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Agendamento concluído! Você recebeu R\$ ${response['valor_barbeiro']?.toStringAsFixed(2) ?? '0,00'}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response['message'] ?? 'Erro ao concluir agendamento'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Erro de conexão'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _cancelarAgendamento() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    if (authProvider.token == null) return;
+
+    try {
+      final response = await ApiService.cancelarAgendamentoBarbeiro(
+        widget.agendamento.id!,
+        'Cancelado pelo barbeiro',
+        authProvider.token!,
+      );
+
+      if (response['success'] == true && mounted) {
+        Navigator.pop(context);
+        widget.onUpdate?.call();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Agendamento cancelado'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response['message'] ?? 'Erro ao cancelar agendamento'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Erro de conexão'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   void _mostrarDialogCancelar(BuildContext context) {
     showDialog(
       context: context,
@@ -276,14 +361,8 @@ class DetalhesAgendamentoBarbeiroDialog extends StatelessWidget {
           ),
           ElevatedButton(
             onPressed: () {
-              // TODO: Cancelar agendamento
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Agendamento cancelado'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+              _cancelarAgendamento();
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,

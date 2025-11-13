@@ -40,12 +40,12 @@ class BarbeiroProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> carregarAgendamentosDia(int barbeiroId, DateTime data) async {
+  Future<bool> carregarAgendamentosDia(int barbeiroId, DateTime data, String token) async {
     try {
       setLoading(true);
       setError(null);
 
-      final response = await ApiService.getAgendamentosBarbeiro(barbeiroId, data);
+      final response = await ApiService.getAgendamentosBarbeiro(barbeiroId, data, token);
 
       if (response['success']) {
         _agendamentosDia = (response['agendamentos'] as List)
@@ -65,12 +65,12 @@ class BarbeiroProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> concluirAgendamento(int agendamentoId) async {
+  Future<bool> concluirAgendamento(int agendamentoId, String token) async {
     try {
       setLoading(true);
       setError(null);
 
-      final response = await ApiService.concluirAgendamento(agendamentoId);
+      final response = await ApiService.concluirAgendamento(agendamentoId, token);
 
       if (response['success']) {
         // Atualizar status localmente
@@ -93,7 +93,7 @@ class BarbeiroProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> cancelarAgendamento(int agendamentoId, String motivo) async {
+  Future<bool> cancelarAgendamento(int agendamentoId, String motivo, String token) async {
     try {
       setLoading(true);
       setError(null);
@@ -101,6 +101,7 @@ class BarbeiroProvider with ChangeNotifier {
       final response = await ApiService.cancelarAgendamentoBarbeiro(
         agendamentoId,
         motivo,
+        token,
       );
 
       if (response['success']) {

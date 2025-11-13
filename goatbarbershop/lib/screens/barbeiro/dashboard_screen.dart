@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../models/agendamento_model.dart';
 import '../../services/api_service.dart';
 import 'cronograma_dia_screen.dart';
+import 'carteira_barbeiro_screen.dart';
 
 class BarberDashboardScreen extends StatefulWidget {
   const BarberDashboardScreen({super.key});
@@ -26,23 +27,53 @@ class _BarberDashboardScreenState extends State<BarberDashboardScreen> {
   Future<void> _carregarAgendamentosHoje() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     
-    if (authProvider.user?.id == null) return;
+    print('DEBUG: Carregando agendamentos...');
+    print('DEBUG: User ID: ${authProvider.user?.id}');
+    print('DEBUG: Token exists: ${authProvider.token != null}');
+    
+    if (authProvider.user?.id == null || authProvider.token == null) {
+      print('DEBUG: User ID ou token nulo, retornando');
+      return;
+    }
 
     try {
-      final response = await ApiService.getAgendamentosBarbeiro(
+      final response = await ApiService.getTodosAgendamentosBarbeiro(
         authProvider.user!.id!,
-        DateTime.now(),
+        authProvider.token!,
       );
 
+      print('DEBUG: Response: $response');
+
       if (response['success'] == true && mounted) {
+        final todosAgendamentos = (response['agendamentos'] as List)
+            .map((json) => AgendamentoModel.fromJson(json))
+            .toList();
+        
+        // Filtrar apenas agendamentos de hoje
+        final hoje = DateTime.now();
+        final agendamentosHoje = todosAgendamentos.where((agendamento) {
+          return agendamento.dataAgendamento.year == hoje.year &&
+                 agendamento.dataAgendamento.month == hoje.month &&
+                 agendamento.dataAgendamento.day == hoje.day;
+        }).toList();
+        
+        print('DEBUG: Total agendamentos: ${todosAgendamentos.length}');
+        print('DEBUG: Agendamentos hoje: ${agendamentosHoje.length}');
+        
         setState(() {
-          _agendamentosHoje = (response['agendamentos'] as List)
-              .map((json) => AgendamentoModel.fromJson(json))
-              .toList();
+          _agendamentosHoje = agendamentosHoje;
           _isLoading = false;
         });
+      } else {
+        print('DEBUG: Response não foi sucesso ou widget não montado');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     } catch (e) {
+      print('DEBUG: Erro ao carregar agendamentos: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -163,21 +194,49 @@ class _BarberDashboardScreenState extends State<BarberDashboardScreen> {
 
                   const SizedBox(height: 24),
 
-                  // Botão ver cronograma completo
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const CronogramaDiaScreen(),
+                  // Botões de ação
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 56,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const CronogramaDiaScreen(),
+                                ),
+                              );
+                            },
+                            child: const Text('Cronograma'),
                           ),
-                        );
-                      },
-                      child: const Text('Ver Cronograma Completo'),
-                    ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SizedBox(
+                          height: 56,
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const CarteiraBarbeiroScreen(),
+                                ),
+                              );
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFFFFB84D)),
+                            ),
+                            child: const Text(
+                              'Minha Carteira',
+                              style: TextStyle(color: Color(0xFFFFB84D)),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
 
                   const SizedBox(height: 32),

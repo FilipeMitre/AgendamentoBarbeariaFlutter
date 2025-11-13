@@ -15,27 +15,18 @@ class CronogramaDiaScreen extends StatefulWidget {
 
 class _CronogramaDiaScreenState extends State<CronogramaDiaScreen> {
   DateTime _dataSelecionada = DateTime.now();
+  bool _isLoading = false;
 
-  // Dados mockados - virão da API
   final List<DateTime> _diasDisponiveis = List.generate(
     7,
     (index) => DateTime.now().add(Duration(days: index)),
   );
 
   final List<String> _horariosDisponiveis = [
-    '10:00',
-    '11:00',
-    '12:00',
-    '13:00',
-    '14:00',
-    '15:00',
-    '16:00',
-    '17:00',
-    '18:00',
-    '19:00',
+    '08:00', '09:00', '10:00', '11:00', '12:00',
+    '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'
   ];
 
-  // Agendamentos (vão ser carregados da API)
   final Map<String, AgendamentoModel> _agendamentos = {};
 
   @override
@@ -47,12 +38,17 @@ class _CronogramaDiaScreenState extends State<CronogramaDiaScreen> {
   Future<void> _carregarAgendamentos() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-    if (authProvider.user?.id == null) return;
+    if (authProvider.user?.id == null || authProvider.token == null) return;
+
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
       final response = await ApiService.getAgendamentosBarbeiro(
         authProvider.user!.id!,
         _dataSelecionada,
+        authProvider.token!,
       );
 
       if (response['success'] == true && mounted) {
@@ -63,15 +59,24 @@ class _CronogramaDiaScreenState extends State<CronogramaDiaScreen> {
         setState(() {
           _agendamentos.clear();
           for (var agendamento in agendamentos) {
-            _agendamentos[agendamento.horario] = agendamento;
+            // Converter horario de HH:MM:SS para HH:MM
+            String horarioFormatado = agendamento.horario;
+            if (horarioFormatado.length > 5) {
+              horarioFormatado = horarioFormatado.substring(0, 5);
+            }
+            _agendamentos[horarioFormatado] = agendamento;
           }
+          _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Erro ao carregar agendamentos'),
+          SnackBar(
+            content: Text('Erro ao carregar agendamentos: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -85,6 +90,7 @@ class _CronogramaDiaScreenState extends State<CronogramaDiaScreen> {
       barrierColor: Colors.black.withOpacity(0.8),
       builder: (context) => DetalhesAgendamentoBarbeiroDialog(
         agendamento: agendamento,
+        onUpdate: _carregarAgendamentos,
       ),
     );
   }
@@ -103,7 +109,7 @@ class _CronogramaDiaScreenState extends State<CronogramaDiaScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Conograma do dia',
+          'Cronograma do dia',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -333,57 +339,99 @@ class _CronogramaDiaScreenState extends State<CronogramaDiaScreen> {
               const SizedBox(height: 16),
 
               // Grid de horários
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: _horariosDisponiveis.map((horario) {
-                  final agendamento = _agendamentos[horario];
-                  final isMarcado = agendamento != null;
-                  final isConcluido = agendamento?.status == 'concluido';
+              if (_isLoading)
+                const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFB84D)),
+                  ),
+                )
+              else
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: _horariosDisponiveis.map((horario) {
+                    final agendamento = _agendamentos[horario];
+                    final isMarcado = agendamento != null;
+                    final isConcluido = agendamento?.status == 'concluido';
+                    final isCancelado = agendamento?.status == 'cancelado';
 
-                  return GestureDetector(
-                    onTap: isMarcado
-                        ? () => _mostrarDetalhesAgendamento(agendamento)
-                        : null,
-                    child: Container(
-                      width: 80,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      decoration: BoxDecoration(
-                        color: isMarcado
-                            ? const Color(0xFFFFB84D)
-                            : const Color(0xFF1A1A1A),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isMarcado
-                              ? const Color(0xFFFFB84D)
-                              : const Color(0xFF333333),
+                    Color corFundo = const Color(0xFF1A1A1A);
+                    Color corBorda = const Color(0xFF333333);
+                    Color corTexto = Colors.white;
+
+                    if (isMarcado) {
+                      if (isConcluido) {
+                        corFundo = const Color(0xFF4CAF50);
+                        corBorda = const Color(0xFF4CAF50);
+                        corTexto = Colors.white;
+                      } else if (isCancelado) {
+                        corFundo = const Color(0xFFF44336);
+                        corBorda = const Color(0xFFF44336);
+                        corTexto = Colors.white;
+                      } else {
+                        corFundo = const Color(0xFFFFB84D);
+                        corBorda = const Color(0xFFFFB84D);
+                        corTexto = Colors.black;
+                      }
+                    }
+
+                    return GestureDetector(
+                      onTap: isMarcado
+                          ? () => _mostrarDetalhesAgendamento(agendamento)
+                          : null,
+                      child: Container(
+                        width: 80,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: corFundo,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: corBorda),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              horario,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: corTexto,
+                              ),
+                            ),
+                            if (isMarcado) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                agendamento.clienteNome ?? 'Cliente',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: corTexto.withOpacity(0.8),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                            if (isConcluido) ...[
+                              const SizedBox(height: 2),
+                              const Icon(
+                                Icons.check_circle,
+                                size: 12,
+                                color: Colors.white,
+                              ),
+                            ] else if (isCancelado) ...[
+                              const SizedBox(height: 2),
+                              const Icon(
+                                Icons.cancel,
+                                size: 12,
+                                color: Colors.white,
+                              ),
+                            ],
+                          ],
                         ),
                       ),
-                      child: Column(
-                        children: [
-                          Text(
-                            horario,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: isMarcado ? Colors.black : Colors.white,
-                            ),
-                          ),
-                          if (isConcluido) ...[
-                            const SizedBox(height: 4),
-                            const Icon(
-                              Icons.check_circle,
-                              size: 16,
-                              color: Colors.black,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
+                    );
+                  }).toList(),
+                ),
 
               const SizedBox(height: 20),
             ],

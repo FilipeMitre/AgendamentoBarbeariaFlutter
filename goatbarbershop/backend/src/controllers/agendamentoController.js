@@ -43,11 +43,8 @@ exports.criarAgendamento = async (req, res) => {
     }
     const valorServico = parseFloat(servicos[0].preco_base);
 
-    // Buscar a taxa de comissão do sistema
-    const [config] = await connection.query(
-        "SELECT valor FROM configuracoes_sistema WHERE chave = 'taxa_comissao_servico' LIMIT 1"
-    );
-    const taxaComissao = config.length > 0 ? parseFloat(config[0].valor) : 5.0; // Default 5%
+    // Usar taxa de comissão padrão do .env ou 5%
+    const taxaComissao = parseFloat(process.env.TAXA_COMISSAO) || 5.0;
 
     console.log('DEBUG: Taxa comissão:', taxaComissao);
     console.log('DEBUG: Valor serviço:', valorServico);

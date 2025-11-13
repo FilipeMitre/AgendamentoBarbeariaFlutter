@@ -166,6 +166,21 @@ exports.login = async (req, res) => {
       });
     }
 
+    // Criar carteira se não existir (para barbeiros)
+    if (user.tipo_usuario === 'barbeiro') {
+      const [existingWallet] = await db.query(
+        'SELECT id FROM carteiras WHERE usuario_id = ?',
+        [user.id]
+      );
+
+      if (existingWallet.length === 0) {
+        await db.query(
+          'INSERT INTO carteiras (usuario_id, saldo) VALUES (?, 0.00)',
+          [user.id]
+        );
+      }
+    }
+
     // Remover senha do objeto
     delete user.senha_hash;
 
