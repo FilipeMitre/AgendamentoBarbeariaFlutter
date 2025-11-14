@@ -232,6 +232,7 @@ exports.atualizarServico = async (req, res) => {
 // Gerenciar Produtos
 exports.getProdutosAdmin = async (req, res) => {
   try {
+    console.log('[DEBUG] getProdutosAdmin called by userId=', req.userId, 'userTipo=', req.userTipo);
     const [produtos] = await db.query(
       `SELECT p.id, p.nome, p.descricao, p.preco, p.estoque, p.imagem_url, p.ativo, p.destaque,
               cp.nome as categoria_nome, cp.tipo as categoria_tipo
@@ -244,6 +245,8 @@ exports.getProdutosAdmin = async (req, res) => {
       success: true,
       produtos
     });
+
+    console.log('[DEBUG] getProdutosAdmin returned produtos count=', produtos.length);
 
   } catch (error) {
     console.error('Erro ao obter produtos (admin):', error);

@@ -18,7 +18,10 @@ class _GerenciarServicosScreenState extends State<GerenciarServicosScreen> {
   @override
   void initState() {
     super.initState();
-    _carregarServicos();
+    // Evita chamadas que atualizam o Provider durante o build inicial
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _carregarServicos();
+    });
   }
 
   Future<void> _carregarServicos() async {

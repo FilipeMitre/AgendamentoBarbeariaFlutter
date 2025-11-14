@@ -19,7 +19,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _carregarDashboard();
+    // Evita chamar notifyListeners durante a fase de build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _carregarDashboard();
+    });
   }
 
   Future<void> _carregarDashboard() async {

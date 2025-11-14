@@ -5,6 +5,7 @@ const authMiddleware = (req, res, next) => {
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
+      console.log('[DEBUG] authMiddleware: Authorization header missing');
       return res.status(401).json({
         success: false,
         message: 'Token não fornecido'
@@ -13,6 +14,9 @@ const authMiddleware = (req, res, next) => {
 
     const token = authHeader.split(' ')[1];
     const decoded = verifyToken(token);
+
+    // DEBUG: log decoded token minimal info
+    console.log('[DEBUG] authMiddleware: token decoded=', decoded ? { id: decoded.id, tipo: decoded.tipo } : null);
 
     if (!decoded) {
       return res.status(401).json({

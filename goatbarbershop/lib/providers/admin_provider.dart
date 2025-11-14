@@ -185,12 +185,43 @@ class AdminProvider with ChangeNotifier {
       setLoading(true);
       setError(null);
 
+      // DEBUG: log token being used for admin produtos request
+      // (ajuda a diagnosticar problemas de auth/headers)
+      // ignore: avoid_print
+      print('[DEBUG] carregarProdutos token: ${token ?? "<null>"}');
+
       final response = await ApiService.getProdutosAdmin(token);
 
+      // DEBUG: log response summary
+      // ignore: avoid_print
+      print('[DEBUG] getProdutosAdmin response success=${response["success"]}, keys=${response.keys.toList()}');
+
       if (response['success']) {
-        _produtos = (response['produtos'] as List)
-            .map((p) => ProdutoModel.fromJson(p))
-            .toList();
+        final produtosList = (response['produtos'] as List);
+
+        // DEBUG: log number of produtos returned and sample entries
+        // ignore: avoid_print
+        print('[DEBUG] produtos count: ${produtosList.length}');
+        try {
+          // ignore: avoid_print
+          print('[DEBUG] produtos sample: ' + produtosList.take(5).map((p) => p['nome'] + ':' + (p['categoria_tipo'] ?? '')).toList().toString());
+        } catch (e) {
+          // ignore: avoid_print
+          print('[DEBUG] produtos sample log failed: $e');
+        }
+
+        try {
+          _produtos = produtosList.map((p) => ProdutoModel.fromJson(p)).toList();
+          // DEBUG: log mapped product names
+          // ignore: avoid_print
+          print('[DEBUG] _produtos mapped count=${_produtos.length} sample names=' + _produtos.take(5).map((mp) => mp.nome).toList().toString());
+        } catch (e, st) {
+          // ignore: avoid_print
+          print('[ERROR] Falha ao mapear produtos JSON -> ProdutoModel: $e');
+          // ignore: avoid_print
+          print(st);
+          _produtos = [];
+        }
         notifyListeners();
         return true;
       } else {

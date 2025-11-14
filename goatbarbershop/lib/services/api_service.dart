@@ -661,6 +661,10 @@ class ApiService {
         headers: headers,
       );
 
+  // DEBUG: log response status and body length for diagnosis
+  // ignore: avoid_print
+  print('[DEBUG] GET $baseUrl/admin/produtos -> status=${response.statusCode}, body_len=${response.body.length}');
+
       return jsonDecode(response.body);
     } catch (e) {
       return {

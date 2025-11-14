@@ -19,7 +19,10 @@ class _GerenciarProdutosScreenState extends State<GerenciarProdutosScreen> {
   @override
   void initState() {
     super.initState();
-    _carregarProdutos();
+    // Evita chamadas que atualizam o Provider durante o build inicial
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _carregarProdutos();
+    });
   }
 
   Future<void> _carregarProdutos() async {
@@ -39,6 +42,10 @@ class _GerenciarProdutosScreenState extends State<GerenciarProdutosScreen> {
       if (_filtroTipo == 'todos') return true;
       return produto.categoriaTipo == _filtroTipo;
     }).toList();
+
+    // DEBUG: log filtered count (helps diagnose why list might be empty)
+    // ignore: avoid_print
+    print('[DEBUG] gerenciar_produtos build -> produtos total=${adminProvider.produtos.length}, filtrados=${produtosFiltrados.length}, filtro=$_filtroTipo');
 
     return Scaffold(
       backgroundColor: Colors.black,
