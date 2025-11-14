@@ -26,6 +26,14 @@ exports.criarAgendamento = async (req, res) => {
       });
     }
 
+    // Validação: Barbeiro não pode agendar consigo mesmo
+    if (cliente_id === barbeiro_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Não é permitido agendar um serviço consigo mesmo'
+      });
+    }
+
     await connection.beginTransaction();
 
     // Buscar serviço e configurações de comissão

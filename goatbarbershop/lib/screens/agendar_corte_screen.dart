@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'dart:async';
 import '../models/barbeiro_model.dart';
 import '../models/servico_model.dart';
 import '../services/api_service.dart';
+import '../providers/auth_provider.dart';
 import 'confirmar_agendamento_screen.dart';
 
 class AgendarCorteScreen extends StatefulWidget {
@@ -39,6 +41,19 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
   List<String> _horariosOcupados = [];
   List<ServicoModel> _servicos = [];
   bool _isLoadingServicos = false;
+
+  // Getter que filtra barbeiros, excluindo o usuário logado (se for barbeiro)
+  List<Map<String, dynamic>> get _barbeirosDisponiveis {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final usuarioLogado = authProvider.user;
+
+    if (usuarioLogado?.tipoUsuario == 'barbeiro') {
+      // Se o usuário logado é barbeiro, remove ele da lista
+      return _barbeiros.where((b) => b['id'] != usuarioLogado?.id).toList();
+    }
+    // Se é cliente, mostra todos
+    return _barbeiros;
+  }
 
   bool get _canAdvance =>
       _selectedBarbeiro != null &&
@@ -354,7 +369,7 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: _barbeiros.map((barbeiro) {
+                children: _barbeirosDisponiveis.map((barbeiro) {
                   final isSelected = _selectedBarbeiro == barbeiro['id'];
                   return GestureDetector(
                     onTap: () {
