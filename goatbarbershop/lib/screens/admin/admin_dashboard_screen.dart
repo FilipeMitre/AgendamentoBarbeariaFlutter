@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/admin_provider.dart';
-import '../login_screen.dart';
 import 'gerenciar_usuarios_screen.dart';
 import 'gerenciar_servicos_screen.dart';
 import 'gerenciar_produtos_screen.dart';
@@ -64,10 +63,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             icon: const Icon(Icons.logout, color: Colors.white),
             onPressed: () {
               authProvider.logout();
-              // Navega para login e substitui a rota atual
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-              );
+              // Volta para a rota raiz para que AuthWrapper reconstrua a tela correta
+              Navigator.of(context).popUntil((route) => route.isFirst);
             },
           ),
         ],
