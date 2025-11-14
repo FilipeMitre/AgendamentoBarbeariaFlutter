@@ -452,7 +452,7 @@ class ApiService {
       }
       
       final response = await http.get(
-        Uri.parse('$baseUrl/admin/estatisticas'),
+        Uri.parse('$baseUrl/dashboard/admin'),
         headers: headers,
       );
       return jsonDecode(response.body);

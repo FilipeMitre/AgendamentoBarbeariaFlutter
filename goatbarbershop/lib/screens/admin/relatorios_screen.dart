@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/api_service.dart';
 
 class RelatoriosScreen extends StatefulWidget {
   const RelatoriosScreen({super.key});
@@ -11,19 +14,84 @@ class RelatoriosScreen extends StatefulWidget {
 class _RelatoriosScreenState extends State<RelatoriosScreen> {
   DateTime _dataInicio = DateTime.now().subtract(const Duration(days: 30));
   DateTime _dataFim = DateTime.now();
+  bool _isLoading = true;
+  String? _errorMessage;
 
-  // Dados mockados
-  final Map<String, dynamic> _estatisticas = {
-    'total_agendamentos': 145,
-    'agendamentos_concluidos': 132,
-    'agendamentos_cancelados': 13,
-    'receita_total': 6850.00,
-    'ticket_medio': 51.89,
-    'total_clientes': 89,
-    'novos_clientes': 23,
-    'produtos_vendidos': 67,
-    'receita_produtos': 1234.50,
+  // Dados reais do servidor
+  Map<String, dynamic> _estatisticas = {
+    'total_agendamentos': 0,
+    'agendamentos_concluidos': 0,
+    'agendamentos_cancelados': 0,
+    'receita_total': 0.0,
+    'ticket_medio': 0.0,
+    'total_clientes': 0,
+    'novos_clientes': 0,
+    'produtos_vendidos': 0,
+    'receita_produtos': 0.0,
   };
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarEstatisticas();
+  }
+
+  Future<void> _carregarEstatisticas() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    if (authProvider.token == null) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Token não disponível';
+      });
+      return;
+    }
+
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
+      final response = await ApiService.getAdminDashboard(authProvider.token);
+
+      if (response['success'] == true && response['data'] != null) {
+        final data = response['data'];
+        
+        final totalAgendamentos = data['totalAgendamentos'] ?? 0;
+        final receitaTotal = (data['receitaTotal'] ?? 0).toDouble();
+        final ticketMedio = totalAgendamentos > 0 
+            ? (receitaTotal / totalAgendamentos) 
+            : 0.0;
+
+        setState(() {
+          _estatisticas = {
+            'total_agendamentos': totalAgendamentos,
+            'agendamentos_concluidos': totalAgendamentos,
+            'agendamentos_cancelados': 0,
+            'receita_total': receitaTotal,
+            'ticket_medio': ticketMedio,
+            'total_clientes': data['totalUsuarios'] ?? 0,
+            'novos_clientes': 0,
+            'produtos_vendidos': 0,
+            'receita_produtos': 0.0,
+          };
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = response['message'] ?? 'Erro ao carregar estatísticas';
+        });
+      }
+    } catch (e) {
+      print('Erro ao carregar estatísticas: $e');
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Erro: $e';
+      });
+    }
+  }
 
   Future<void> _selecionarData(bool isInicio) async {
     final DateTime? picked = await showDatePicker(
@@ -76,7 +144,52 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
         ),
         centerTitle: false,
       ),
-      body: SingleChildScrollView(
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFFFFB84D),
+              ),
+            )
+          : _errorMessage != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Erro ao carregar dados',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton(
+                        onPressed: _carregarEstatisticas,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFB84D),
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        ),
+                        child: const Text(
+                          'Tentar Novamente',
+                          style: TextStyle(color: Colors.black),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -231,7 +344,7 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
                 Expanded(
                   child: _buildStatCard(
                     'Taxa Conclusão',
-                    '${((_estatisticas['agendamentos_concluidos'] / _estatisticas['total_agendamentos']) * 100).toStringAsFixed(1)}%',
+                    '${((_estatisticas['agendamentos_concluidos'] / (_estatisticas['total_agendamentos'] > 0 ? _estatisticas['total_agendamentos'] : 1)) * 100).toStringAsFixed(1)}%',
                     Icons.trending_up,
                     Colors.blue,
                   ),
