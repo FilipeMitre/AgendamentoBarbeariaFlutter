@@ -55,14 +55,21 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
 
       final response = await ApiService.getAdminDashboard(authProvider.token);
 
-      if (response['success'] == true && response['data'] != null) {
-        final data = response['data'];
-        
-        final totalAgendamentos = data['totalAgendamentos'] ?? 0;
-        final receitaTotal = (data['receitaTotal'] ?? 0).toDouble();
-        final ticketMedio = totalAgendamentos > 0 
-            ? (receitaTotal / totalAgendamentos) 
-            : 0.0;
+      if (response['success'] == true) {
+        final data = response['data'] ?? response;
+
+        final totalAgendamentos = (data['totalAgendamentos'] ?? data['total_agendamentos'] ?? data['totalAppointments'] ?? 0);
+
+        // receita may be number or string
+        double receitaTotal = 0.0;
+        final rawReceita = data['receitaTotal'] ?? data['receita_total'] ?? data['revenue'] ?? 0;
+        if (rawReceita is String) {
+          receitaTotal = double.tryParse(rawReceita.replaceAll(RegExp(r'[^0-9\.,-]'), '').replaceAll(',', '.')) ?? 0.0;
+        } else if (rawReceita is num) {
+          receitaTotal = rawReceita.toDouble();
+        }
+
+        final ticketMedio = totalAgendamentos > 0 ? (receitaTotal / totalAgendamentos) : 0.0;
 
         setState(() {
           _estatisticas = {
@@ -71,7 +78,7 @@ class _RelatoriosScreenState extends State<RelatoriosScreen> {
             'agendamentos_cancelados': 0,
             'receita_total': receitaTotal,
             'ticket_medio': ticketMedio,
-            'total_clientes': data['totalUsuarios'] ?? 0,
+            'total_clientes': (data['totalUsuarios'] ?? data['total_usuarios'] ?? data['totalUsers'] ?? data['total_clientes'] ?? 0),
             'novos_clientes': 0,
             'produtos_vendidos': 0,
             'receita_produtos': 0.0,
