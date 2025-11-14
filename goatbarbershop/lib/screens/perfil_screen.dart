@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import 'login_screen.dart';
 
 class PerfilScreen extends StatefulWidget {
   const PerfilScreen({super.key});
@@ -392,8 +393,13 @@ class _PerfilScreenState extends State<PerfilScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context);
               Provider.of<AuthProvider>(context, listen: false).logout();
+              // Fecha o diálogo
+              Navigator.pop(context);
+              // Navega para login substituindo a rota atual
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
