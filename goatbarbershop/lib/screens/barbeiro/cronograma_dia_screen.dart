@@ -22,50 +22,76 @@ class _CronogramaDiaScreenState extends State<CronogramaDiaScreen> {
     (index) => DateTime.now().add(Duration(days: index)),
   );
 
-  final List<String> _horariosDisponiveis = [
-    '08:00', '09:00', '10:00', '11:00', '12:00',
-    '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'
-  ];
+  List<String> _horariosDisponiveis = [];
 
   final Map<String, AgendamentoModel> _agendamentos = {};
 
   @override
   void initState() {
     super.initState();
-    _carregarAgendamentos();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _carregarHorariosDisponiveis();
+    });
   }
 
-  Future<void> _carregarAgendamentos() async {
+  Future<void> _carregarHorariosDisponiveis() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
     if (authProvider.user?.id == null || authProvider.token == null) return;
-
     setState(() {
       _isLoading = true;
     });
-
     try {
+      // Buscar horários disponíveis do backend
+      final horariosResponse = await ApiService.getHorariosDisponiveis(
+        authProvider.user!.id!,
+        _dataSelecionada,
+      );
+      
+      List<String> horariosDisponiveis = [];
+      if (horariosResponse['success'] == true && mounted) {
+        horariosDisponiveis = List<String>.from(horariosResponse['horarios'] ?? []);
+      }
+      
+      // Buscar agendamentos do barbeiro
       final response = await ApiService.getAgendamentosBarbeiro(
         authProvider.user!.id!,
         _dataSelecionada,
         authProvider.token!,
       );
-
+      
       if (response['success'] == true && mounted) {
         final agendamentos = (response['agendamentos'] as List)
             .map((json) => AgendamentoModel.fromJson(json))
             .toList();
-
-        setState(() {
-          _agendamentos.clear();
-          for (var agendamento in agendamentos) {
-            // Converter horario de HH:MM:SS para HH:MM
-            String horarioFormatado = agendamento.horario;
-            if (horarioFormatado.length > 5) {
-              horarioFormatado = horarioFormatado.substring(0, 5);
-            }
-            _agendamentos[horarioFormatado] = agendamento;
+        
+        _agendamentos.clear();
+        Set<String> horariosAgendados = {};
+        
+        for (var agendamento in agendamentos) {
+          String horarioFormatado = agendamento.horario;
+          if (horarioFormatado.length > 5) {
+            horarioFormatado = horarioFormatado.substring(0, 5);
           }
+          _agendamentos[horarioFormatado] = agendamento;
+          horariosAgendados.add(horarioFormatado);
+        }
+        
+        // Combinar horários disponíveis com horários agendados
+        final todosHorarios = <String>{
+          ...horariosDisponiveis,
+          ...horariosAgendados,
+        }.toList();
+        
+        // Ordenar os horários
+        todosHorarios.sort();
+        
+        setState(() {
+          _horariosDisponiveis = todosHorarios;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _horariosDisponiveis = horariosDisponiveis;
           _isLoading = false;
         });
       }
@@ -76,7 +102,7 @@ class _CronogramaDiaScreenState extends State<CronogramaDiaScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erro ao carregar agendamentos: $e'),
+            content: Text('Erro ao carregar horários/agendamentos: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -90,7 +116,7 @@ class _CronogramaDiaScreenState extends State<CronogramaDiaScreen> {
       barrierColor: Colors.black.withOpacity(0.8),
       builder: (context) => DetalhesAgendamentoBarbeiroDialog(
         agendamento: agendamento,
-        onUpdate: _carregarAgendamentos,
+        onUpdate: _carregarHorariosDisponiveis,
       ),
     );
   }
@@ -280,7 +306,7 @@ class _CronogramaDiaScreenState extends State<CronogramaDiaScreen> {
                           setState(() {
                             _dataSelecionada = data;
                           });
-                          _carregarAgendamentos();
+                          _carregarHorariosDisponiveis();
                         },
                         child: Container(
                           width: 70,

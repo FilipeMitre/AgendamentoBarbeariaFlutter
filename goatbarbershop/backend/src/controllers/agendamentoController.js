@@ -351,7 +351,14 @@ exports.getHorariosDisponiveis = async (req, res) => {
       `SELECT CAST(valor AS UNSIGNED) as intervalo FROM configuracoes_sistema 
        WHERE chave = 'intervalo_agendamento_minutos' LIMIT 1`
     );
-    const intervalloMinutos = configIntervalo.length > 0 ? parseInt(configIntervalo[0].intervalo) : 30;
+  // Resgata intervalo configurado, mas forçamos 30min aqui temporariamente para teste
+  let intervalloMinutos = configIntervalo.length > 0 ? parseInt(configIntervalo[0].intervalo) : 30;
+  // TEMPORARY TEST FIX: force 30 minutes interval to verify half-hour slots appear
+  intervalloMinutos = 30;
+  console.log('DEBUG: Forçando intervalo_agendamento_minutos =', intervalloMinutos, '(teste temporário)');
+
+    // DEBUG: log intervalo configurado
+    console.log('DEBUG: intervalo_agendamento_minutos =', intervalloMinutos);
 
     // Gerar lista de horários base a partir do intervalo configurado
     const horariosBase = [];
@@ -372,7 +379,7 @@ exports.getHorariosDisponiveis = async (req, res) => {
       }
     }
 
-    console.log('DEBUG: Horários gerados a partir do banco:', horariosBase);
+  console.log('DEBUG: Horários gerados a partir do banco (horariosBase):', horariosBase);
 
     // Buscar disponibilidade do barbeiro para este dia e hora
     const [disponibilidadeBarbeiro] = await db.query(
@@ -384,16 +391,40 @@ exports.getHorariosDisponiveis = async (req, res) => {
       [barbeiro_id, diaSemanaStr]
     );
 
-    const horariosDisponicaoFormatados = disponibilidadeBarbeiro.map(d => {
-      const horario = d.horario;
+    // Normalizar horários da disponibilidade do barbeiro para o formato HH:MM
+    const normalizeTime = (horario) => {
+      if (horario === null || typeof horario === 'undefined') return null;
       if (typeof horario === 'string') {
-        return horario.substring(0, 5); // Pegar apenas HH:MM
+        const s = horario.trim();
+        if (s.includes(':')) {
+          const parts = s.split(':');
+          const hh = parts[0].padStart(2, '0');
+          const mm = (parts[1] || '00').padStart(2, '0');
+          return `${hh}:${mm}`;
+        }
+        // Se veio apenas a hora (ex: '8' ou '08'), converter para HH:00
+        const hhOnly = s.padStart(2, '0');
+        return `${hhOnly}:00`;
       }
-      return horario;
-    });
+      if (horario instanceof Date) {
+        const hh = String(horario.getHours()).padStart(2, '0');
+        const mm = String(horario.getMinutes()).padStart(2, '0');
+        return `${hh}:${mm}`;
+      }
+      // Para outros tipos (números), converter para string HH:00
+      const str = String(horario);
+      const hh = str.padStart(2, '0');
+      return `${hh}:00`;
+    };
 
-    console.log(`DEBUG: Barbeiro ${barbeiro_id} tem ${horariosDisponicaoFormatados.length} horários disponíveis:`, horariosDisponicaoFormatados);
-    console.log('DEBUG: Horários base gerados:', horariosBase);
+    const horariosDisponicaoFormatados = disponibilidadeBarbeiro.map(d => normalizeTime(d.horario)).filter(Boolean);
+
+  console.log(`DEBUG: Barbeiro ${barbeiro_id} tem ${horariosDisponicaoFormatados.length} horários disponíveis (normalizados):`, horariosDisponicaoFormatados);
+  console.log('DEBUG: Horários base gerados (re-log):', horariosBase);
+
+  // DEBUG: mostrar interseção tentativa entre horariosBase e disponibilidade
+  const interseccao = horariosBase.filter(h => horariosDisponicaoFormatados.includes(h));
+  console.log('DEBUG: Interseção horariosBase ∩ disponibilidade:', interseccao);
 
     // Filtrar apenas horários onde o barbeiro está disponível
     let horariosValidos = horariosBase.filter(h => horariosDisponicaoFormatados.includes(h));
@@ -411,13 +442,8 @@ exports.getHorariosDisponiveis = async (req, res) => {
       [barbeiro_id, data]
     );
 
-    const horariosOcupados = agendamentosOcupados.map(a => {
-      const horario = a.horario;
-      if (typeof horario === 'string') {
-        return horario.substring(0, 5); // Pegar apenas HH:MM
-      }
-      return horario;
-    });
+    // Normalizar horários ocupados para HH:MM
+    const horariosOcupados = agendamentosOcupados.map(a => normalizeTime(a.horario)).filter(Boolean);
     
     console.log('DEBUG: Horários ocupados encontrados:', horariosOcupados);
 

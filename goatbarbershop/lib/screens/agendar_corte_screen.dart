@@ -205,10 +205,25 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
       );
       
       if (response['success'] && mounted) {
+        // DEBUG: logar conteúdo bruto retornado pela API
+        // ignore: avoid_print
+        print('[DEBUG] API horarios raw: ' + response.toString());
+
+        final rawHorarios = response['horarios'];
+        final rawOcupados = response['horarios_ocupados'] ?? [];
+        // ignore: avoid_print
+        print('[DEBUG] API horarios list types: horarios=${rawHorarios.runtimeType}, ocupados=${rawOcupados.runtimeType}');
+
         setState(() {
-          _horariosDisponiveis = List<String>.from(response['horarios']);
-          _horariosOcupados = List<String>.from(response['horarios_ocupados'] ?? []);
+          _horariosDisponiveis = List<String>.from(rawHorarios.map((h) => h.toString().substring(0,5)));
+          _horariosOcupados = List<String>.from(rawOcupados.map((h) => h.toString().substring(0,5)));
         });
+
+        // DEBUG: log after mapping
+        // ignore: avoid_print
+        print('[DEBUG] Mapped horariosDisponiveis=' + _horariosDisponiveis.toString());
+        // ignore: avoid_print
+        print('[DEBUG] Mapped horariosOcupados=' + _horariosOcupados.toString());
       }
     } catch (e) {
       // Em caso de erro, usar horários padrão filtrados
@@ -891,6 +906,10 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
       ..._horariosOcupados,
     ].toSet().toList()
       ..sort((a, b) => a.compareTo(b));
+
+    // DEBUG: log todosHorarios antes de construir o grid
+    // ignore: avoid_print
+    print('[DEBUG] todosHorarios final used for grid=' + todosHorarios.toString());
 
     return GridView.builder(
       shrinkWrap: true,
