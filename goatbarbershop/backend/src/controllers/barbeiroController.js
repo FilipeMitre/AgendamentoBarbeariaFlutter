@@ -506,3 +506,267 @@ exports.getEstatisticas = async (req, res) => {
     });
   }
 };
+
+// Obter horários de trabalho do barbeiro (resumo por dia)
+exports.getHorariosTrabalho = async (req, res) => {
+  try {
+    const { barbeiroId } = req.params;
+
+    // Verificar permissão
+    if (req.userId != barbeiroId && req.userTipo !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado'
+      });
+    }
+
+    // Buscar horários disponíveis agrupados por dia
+    const [horarios] = await db.query(
+      `SELECT 
+         dia_semana,
+         MIN(horario) as hora_inicio,
+         MAX(horario) as hora_fim,
+         CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END as ativo
+       FROM disponibilidade_barbeiro
+       WHERE barbeiro_id = ?
+       GROUP BY dia_semana
+       ORDER BY FIELD(dia_semana, 'domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado')`,
+      [barbeiroId]
+    );
+
+    // Formatar resposta para incluir os 7 dias da semana
+    const dias = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
+    const horariosFormatados = dias.map(dia => {
+      const encontrado = horarios.find(h => h.dia_semana === dia);
+      return {
+        dia_semana: dia,
+        hora_inicio: encontrado?.hora_inicio || '09:00',
+        hora_fim: encontrado?.hora_fim || '18:00',
+        ativo: encontrado ? true : false
+      };
+    });
+
+    res.json({
+      success: true,
+      horarios: horariosFormatados
+    });
+
+  } catch (error) {
+    console.error('Erro ao obter horários de trabalho:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao obter horários',
+      error: error.message
+    });
+  }
+};
+
+// Atualizar horários de trabalho do barbeiro (gera slots automaticamente)
+exports.atualizarHorariosTrabalho = async (req, res) => {
+  const connection = await db.getConnection();
+  
+  try {
+    const { barbeiroId } = req.params;
+    const { horarios } = req.body; // Array de { dia_semana, hora_inicio, hora_fim, ativo }
+
+    // Verificar permissão
+    if (req.userId != barbeiroId && req.userTipo !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado'
+      });
+    }
+
+    // Validar dados
+    if (!Array.isArray(horarios) || horarios.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Horários deve ser um array não vazio'
+      });
+    }
+
+    const diasValidos = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
+    const intervaloMinutos = 30; // Intervalo padrão entre slots
+
+    await connection.beginTransaction();
+
+    // Deletar disponibilidades antigas do barbeiro
+    await connection.query(
+      'DELETE FROM disponibilidade_barbeiro WHERE barbeiro_id = ?',
+      [barbeiroId]
+    );
+
+    // Processar cada dia
+    for (const horario of horarios) {
+      const { dia_semana, hora_inicio, hora_fim, ativo = true } = horario;
+
+      // Validações
+      if (!dia_semana || !hora_inicio || !hora_fim) {
+        await connection.rollback();
+        return res.status(400).json({
+          success: false,
+          message: 'Dados incompletos: dia_semana, hora_inicio e hora_fim são obrigatórios'
+        });
+      }
+
+      if (!diasValidos.includes(dia_semana)) {
+        await connection.rollback();
+        return res.status(400).json({
+          success: false,
+          message: `dia_semana inválido: ${dia_semana}`
+        });
+      }
+
+      // Se dia está inativo, pular
+      if (!ativo) {
+        continue;
+      }
+
+      // Gerar slots a cada 30 minutos
+      let horaAtual = new Date(`2024-01-01 ${hora_inicio}`);
+      const horaFimDate = new Date(`2024-01-01 ${hora_fim}`);
+
+      while (horaAtual < horaFimDate) {
+        const hora = horaAtual.toLocaleTimeString('pt-BR', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: false 
+        });
+
+        // Inserir slot de disponibilidade
+        await connection.query(
+          `INSERT INTO disponibilidade_barbeiro (barbeiro_id, dia_semana, horario, ativo)
+           VALUES (?, ?, ?, 1)
+           ON DUPLICATE KEY UPDATE ativo = 1`,
+          [barbeiroId, dia_semana, hora]
+        );
+
+        horaAtual.setMinutes(horaAtual.getMinutes() + intervaloMinutos);
+      }
+    }
+
+    await connection.commit();
+
+    // Retornar novo resumo de horários
+    const [horariosAtualizados] = await connection.query(
+      `SELECT 
+         dia_semana,
+         MIN(horario) as hora_inicio,
+         MAX(horario) as hora_fim,
+         CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END as ativo
+       FROM disponibilidade_barbeiro
+       WHERE barbeiro_id = ?
+       GROUP BY dia_semana
+       ORDER BY FIELD(dia_semana, 'domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado')`,
+      [barbeiroId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Horários de trabalho atualizados com sucesso',
+      horarios: horariosAtualizados
+    });
+
+  } catch (error) {
+    await connection.rollback();
+    console.error('Erro ao atualizar horários de trabalho:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao atualizar horários',
+      error: error.message
+    });
+  } finally {
+    connection.release();
+  }
+};
+
+// Atualizar um único dia de trabalho
+exports.atualizarHorarioDia = async (req, res) => {
+  const connection = await db.getConnection();
+  
+  try {
+    const { barbeiroId } = req.params;
+    const { dia_semana, hora_inicio, hora_fim, ativo = true } = req.body;
+
+    // Verificar permissão
+    if (req.userId != barbeiroId && req.userTipo !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado'
+      });
+    }
+
+    // Validar dados
+    if (!dia_semana || !hora_inicio || !hora_fim) {
+      return res.status(400).json({
+        success: false,
+        message: 'dia_semana, hora_inicio e hora_fim são obrigatórios'
+      });
+    }
+
+    const diasValidos = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
+    if (!diasValidos.includes(dia_semana)) {
+      return res.status(400).json({
+        success: false,
+        message: `dia_semana inválido: ${dia_semana}`
+      });
+    }
+
+    await connection.beginTransaction();
+
+    // Deletar slots antigos deste dia
+    await connection.query(
+      'DELETE FROM disponibilidade_barbeiro WHERE barbeiro_id = ? AND dia_semana = ?',
+      [barbeiroId, dia_semana]
+    );
+
+    // Se está ativo, gerar novos slots
+    if (ativo) {
+      const intervaloMinutos = 30;
+      let horaAtual = new Date(`2024-01-01 ${hora_inicio}`);
+      const horaFimDate = new Date(`2024-01-01 ${hora_fim}`);
+
+      while (horaAtual < horaFimDate) {
+        const hora = horaAtual.toLocaleTimeString('pt-BR', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: false 
+        });
+
+        await connection.query(
+          `INSERT INTO disponibilidade_barbeiro (barbeiro_id, dia_semana, horario, ativo)
+           VALUES (?, ?, ?, 1)`,
+          [barbeiroId, dia_semana, hora]
+        );
+
+        horaAtual.setMinutes(horaAtual.getMinutes() + intervaloMinutos);
+      }
+    }
+
+    await connection.commit();
+
+    res.json({
+      success: true,
+      message: 'Horário atualizado com sucesso',
+      horario: {
+        barbeiro_id: barbeiroId,
+        dia_semana,
+        hora_inicio,
+        hora_fim,
+        ativo
+      }
+    });
+
+  } catch (error) {
+    await connection.rollback();
+    console.error('Erro ao atualizar horário do dia:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao atualizar horário',
+      error: error.message
+    });
+  } finally {
+    connection.release();
+  }
+};
+

@@ -6,6 +6,7 @@ import '../../models/agendamento_model.dart';
 import '../../services/api_service.dart';
 import 'cronograma_dia_screen.dart';
 import 'carteira_barbeiro_screen.dart';
+import 'configurar_horarios_screen.dart';
 
 class BarberDashboardScreen extends StatefulWidget {
   const BarberDashboardScreen({super.key});
@@ -230,7 +231,30 @@ class _BarberDashboardScreenState extends State<BarberDashboardScreen> {
                               side: const BorderSide(color: Color(0xFFFFB84D)),
                             ),
                             child: const Text(
-                              'Minha Carteira',
+                              'Carteira',
+                              style: TextStyle(color: Color(0xFFFFB84D)),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SizedBox(
+                          height: 56,
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const ConfigurarHorariosScreen(),
+                                ),
+                              );
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFFFFB84D)),
+                            ),
+                            child: const Text(
+                              'Horários',
                               style: TextStyle(color: Color(0xFFFFB84D)),
                             ),
                           ),

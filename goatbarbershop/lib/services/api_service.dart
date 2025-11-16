@@ -601,6 +601,89 @@ class ApiService {
     }
   }
 
+  // Obter horários de trabalho do barbeiro
+  static Future<Map<String, dynamic>> getHorariosTrabalho(
+    int barbeiroId,
+    String token,
+  ) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/barbeiro/$barbeiroId/horarios'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro de conexão com o servidor',
+      };
+    }
+  }
+
+  // Atualizar horários de trabalho do barbeiro
+  static Future<Map<String, dynamic>> atualizarHorariosTrabalho(
+    int barbeiroId,
+    List<Map<String, dynamic>> horarios,
+    String token,
+  ) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/barbeiro/$barbeiroId/horarios'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'horarios': horarios,
+        }),
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro de conexão com o servidor',
+      };
+    }
+  }
+
+  // Atualizar horário de um dia específico
+  static Future<Map<String, dynamic>> atualizarHorarioDia(
+    int barbeiroId,
+    String diaSemana,
+    String horaInicio,
+    String horaFim,
+    bool ativo,
+    String token,
+  ) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/barbeiro/$barbeiroId/horarios'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'dia_semana': diaSemana,
+          'hora_inicio': horaInicio,
+          'hora_fim': horaFim,
+          'ativo': ativo,
+        }),
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro de conexão com o servidor',
+      };
+    }
+  }
+
   static Future<Map<String, dynamic>> adicionarServico(
     String nome,
     String descricao,
