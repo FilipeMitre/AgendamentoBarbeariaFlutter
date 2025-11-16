@@ -13,7 +13,8 @@ exports.criarAgendamento = async (req, res) => {
       barbeiro_id,
       servico_id,
       data_agendamento,
-      horario
+      horario,
+      produtos: produtosRequest // Map de { nome_produto: valor_total }
     } = req.body;
 
     const cliente_id = req.userId;
@@ -26,7 +27,6 @@ exports.criarAgendamento = async (req, res) => {
       });
     }
 
-    // Validação: Barbeiro não pode agendar consigo mesmo
     if (cliente_id === barbeiro_id) {
       return res.status(400).json({
         success: false,
@@ -36,7 +36,7 @@ exports.criarAgendamento = async (req, res) => {
 
     await connection.beginTransaction();
 
-    // Buscar serviço e configurações de comissão
+    // 1. Buscar serviço e calcular valor do serviço
     const [servicos] = await connection.query(
       'SELECT preco_base FROM servicos WHERE id = ? AND ativo = TRUE',
       [servico_id]
@@ -44,151 +44,164 @@ exports.criarAgendamento = async (req, res) => {
 
     if (servicos.length === 0) {
       await connection.rollback();
-      return res.status(404).json({
-        success: false,
-        message: 'Serviço não encontrado'
-      });
+      return res.status(404).json({ success: false, message: 'Serviço não encontrado' });
     }
     const valorServico = parseFloat(servicos[0].preco_base);
 
-    // Usar taxa de comissão padrão do .env ou 5%
+    // 2. Calcular valor dos produtos
+    let valorProdutos = 0;
+    const produtosParaInserir = [];
+
+    if (produtosRequest && typeof produtosRequest === 'object' && Object.keys(produtosRequest).length > 0) {
+      const nomesProdutos = Object.keys(produtosRequest);
+      
+      const [produtosDb] = await connection.query(
+        'SELECT id, nome, preco, estoque FROM produtos WHERE nome IN (?) AND ativo = TRUE',
+        [nomesProdutos]
+      );
+
+      if (produtosDb.length !== nomesProdutos.length) {
+        await connection.rollback();
+        return res.status(404).json({ success: false, message: 'Um ou mais produtos não foram encontrados ou estão inativos.' });
+      }
+
+      for (const [nomeProduto, valorTotalProduto] of Object.entries(produtosRequest)) {
+        const produtoDb = produtosDb.find(p => p.nome === nomeProduto);
+        if (!produtoDb) {
+          await connection.rollback();
+          return res.status(404).json({ success: false, message: `Produto "${nomeProduto}" não encontrado.` });
+        }
+
+        const precoUnitario = parseFloat(produtoDb.preco);
+        const subtotal = parseFloat(valorTotalProduto);
+        const quantidade = Math.round(subtotal / precoUnitario);
+
+        if (produtoDb.estoque < quantidade) {
+          await connection.rollback();
+          return res.status(400).json({ success: false, message: `Estoque insuficiente para o produto "${nomeProduto}".` });
+        }
+        
+        valorProdutos += subtotal;
+
+        produtosParaInserir.push({
+          produto_id: produtoDb.id,
+          quantidade: quantidade,
+          preco_unitario: precoUnitario,
+          subtotal: subtotal
+        });
+      }
+    }
+
+    // 3. Calcular valor total e comissões
+    const valorTotal = valorServico + valorProdutos;
     const taxaComissao = parseFloat(process.env.TAXA_COMISSAO) || 5.0;
-
-    console.log('DEBUG: Taxa comissão:', taxaComissao);
-    console.log('DEBUG: Valor serviço:', valorServico);
-
-    // Calcular comissão e valor para o barbeiro
-    const valorComissao = calcularComissao(valorServico, taxaComissao);
+    const valorComissao = calcularComissao(valorServico, taxaComissao); // Comissão apenas sobre o serviço
     const valorBarbeiro = calcularValorBarbeiro(valorServico, valorComissao);
-    
-    console.log('DEBUG: Valor comissão:', valorComissao);
-    console.log('DEBUG: Valor barbeiro:', valorBarbeiro);
 
-
-    // Buscar ou criar carteira do cliente
-    let [carteiras] = await connection.query(
+    // 4. Verificar saldo do cliente
+    const [carteiras] = await connection.query(
       'SELECT id, saldo FROM carteiras WHERE usuario_id = ? FOR UPDATE',
       [cliente_id]
     );
-
+    
     if (carteiras.length === 0) {
-      // Criar carteira se não existir
-      await connection.query(
-        'INSERT INTO carteiras (usuario_id, saldo) VALUES (?, 0.00)',
-        [cliente_id]
-      );
-      
-      [carteiras] = await connection.query(
-        'SELECT id, saldo FROM carteiras WHERE usuario_id = ? FOR UPDATE',
-        [cliente_id]
-      );
+        await connection.rollback();
+        return res.status(404).json({ success: false, message: 'Carteira do cliente não encontrada.'});
     }
 
     const carteira = carteiras[0];
     const saldoAtual = parseFloat(carteira.saldo);
 
-    // Verificar saldo
-    if (saldoAtual < valorServico) {
+    if (saldoAtual < valorTotal) {
       await connection.rollback();
       return res.status(400).json({
         success: false,
         message: 'Saldo insuficiente',
         saldo_atual: saldoAtual,
-        valor_necessario: valorServico
+        valor_necessario: valorTotal
       });
     }
 
-    // Verificar se não é agendamento no passado
-    const dataHoraAgendamento = new Date(data_agendamento + ' ' + horario);
-    const agora = new Date();
-    
-    if (dataHoraAgendamento <= agora) {
+    // 5. Validar horário
+    const dataHoraAgendamento = new Date(`${data_agendamento}T${horario}`);
+    if (dataHoraAgendamento <= new Date()) {
       await connection.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'Não é possível agendar para horários passados'
-      });
+      return res.status(400).json({ success: false, message: 'Não é possível agendar para horários passados' });
     }
 
-    // Verificar disponibilidade do horário
     const [agendamentosExistentes] = await connection.query(
-      `SELECT id FROM agendamentos 
-       WHERE barbeiro_id = ? 
-       AND data_agendamento = ? 
-       AND horario = ? 
-       AND status NOT IN ('cancelado', 'concluido')`,
+      `SELECT id FROM agendamentos WHERE barbeiro_id = ? AND data_agendamento = ? AND horario = ? AND status NOT IN ('cancelado', 'concluido')`,
       [barbeiro_id, data_agendamento, horario]
     );
 
     if (agendamentosExistentes.length > 0) {
       await connection.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'Horário não disponível'
-      });
+      return res.status(400).json({ success: false, message: 'Horário não disponível' });
     }
 
-    // Criar agendamento
-    // Debug: log variables de sessão do MySQL para verificar charset/collation
-    try {
-      const [sessionVars] = await connection.query(
-        "SELECT @@character_set_client AS character_set_client, @@character_set_connection AS character_set_connection, @@collation_connection AS collation_connection"
-      );
-      console.log('DEBUG MySQL session vars before INSERT:', sessionVars[0]);
-    } catch (dbgErr) {
-      console.warn('Não foi possível obter variáveis de sessão MySQL:', dbgErr.message);
-    }
-
+    // 6. Inserir agendamento
     const [agendamentoResult] = await connection.query(
-      `INSERT INTO agendamentos 
-       (cliente_id, barbeiro_id, servico_id, data_agendamento, horario, valor_servico, valor_comissao, valor_barbeiro, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'confirmado')`,
-      [cliente_id, barbeiro_id, servico_id, data_agendamento, horario, valorServico, valorComissao, valorBarbeiro]
+      `INSERT INTO agendamentos (cliente_id, barbeiro_id, servico_id, data_agendamento, horario, valor_servico, valor_produtos, valor_total, valor_comissao, valor_barbeiro, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'confirmado')`,
+      [cliente_id, barbeiro_id, servico_id, data_agendamento, horario, valorServico, valorProdutos, valorTotal, valorComissao, valorBarbeiro]
     );
-
     const agendamentoId = agendamentoResult.insertId;
 
-    // Debitar da carteira do cliente
-    const novoSaldo = saldoAtual - valorServico;
-    await connection.query(
-      'UPDATE carteiras SET saldo = ? WHERE id = ?',
-      [novoSaldo, carteira.id]
-    );
+    // 7. Inserir produtos do agendamento e atualizar estoque
+    if (produtosParaInserir.length > 0) {
+      const insertPromises = produtosParaInserir.map(p => 
+        connection.query(
+          'INSERT INTO agendamento_produtos (agendamento_id, produto_id, quantidade, preco_unitario, subtotal) VALUES (?, ?, ?, ?, ?)',
+          [agendamentoId, p.produto_id, p.quantidade, p.preco_unitario, p.subtotal]
+        )
+      );
+      await Promise.all(insertPromises);
 
-    // Registrar transação
+      const updateEstoquePromises = produtosParaInserir.map(p =>
+        connection.query(
+          'UPDATE produtos SET estoque = estoque - ? WHERE id = ?',
+          [p.quantidade, p.produto_id]
+        )
+      );
+      await Promise.all(updateEstoquePromises);
+    }
+
+    // 8. Debitar da carteira do cliente
+    const novoSaldo = saldoAtual - valorTotal;
+    await connection.query('UPDATE carteiras SET saldo = ? WHERE id = ?', [novoSaldo, carteira.id]);
+
+    // 9. Registrar transação
     await connection.query(
-      `INSERT INTO transacoes 
-       (carteira_id, tipo_transacao, valor, saldo_anterior, saldo_posterior, descricao)
-       VALUES (?, 'pagamento', ?, ?, ?, ?)`,
-      [
-        carteira.id,
-        valorServico,
-        saldoAtual,
-        novoSaldo,
-        `Agendamento #${agendamentoId}`
-      ]
+      `INSERT INTO transacoes (carteira_id, tipo_transacao, valor, saldo_anterior, saldo_posterior, descricao, agendamento_id)
+       VALUES (?, 'pagamento', ?, ?, ?, ?, ?)`,
+      [carteira.id, valorTotal, saldoAtual, novoSaldo, `Pagamento do agendamento #${agendamentoId}`, agendamentoId]
     );
 
     await connection.commit();
 
-    // Buscar agendamento completo
+    // 10. Buscar agendamento completo para retorno
     const [agendamento] = await connection.query(
-      `SELECT a.*, 
-              u.nome as cliente_nome,
-              b.nome as barbeiro_nome,
-              s.nome as servico_nome
+      `SELECT a.*, u.nome as cliente_nome, b.nome as barbeiro_nome, s.nome as servico_nome
        FROM agendamentos a
-       INNER JOIN usuarios u ON u.id = a.cliente_id
-       INNER JOIN usuarios b ON b.id = a.barbeiro_id
-       INNER JOIN servicos s ON s.id = a.servico_id
+       JOIN usuarios u ON u.id = a.cliente_id
+       JOIN usuarios b ON b.id = a.barbeiro_id
+       JOIN servicos s ON s.id = a.servico_id
        WHERE a.id = ?`,
       [agendamentoId]
+    );
+
+    const [produtosDoAgendamento] = await connection.query(
+        `SELECT ap.produto_id, p.nome, ap.quantidade, ap.preco_unitario, ap.subtotal
+         FROM agendamento_produtos ap
+         JOIN produtos p ON p.id = ap.produto_id
+         WHERE ap.agendamento_id = ?`,
+        [agendamentoId]
     );
 
     res.status(201).json({
       success: true,
       message: 'Agendamento criado com sucesso',
-      agendamento: agendamento[0]
+      agendamento: { ...agendamento[0], produtos: produtosDoAgendamento }
     });
 
   } catch (error) {
@@ -232,9 +245,31 @@ exports.getAgendamentosAtivos = async (req, res) => {
       [usuarioId]
     );
 
+    if (agendamentos.length === 0) {
+      return res.json({ success: true, agendamentos: [] });
+    }
+
+    // Buscar produtos para todos os agendamentos de uma vez
+    const agendamentoIds = agendamentos.map(a => a.id);
+    const [produtos] = await db.query(
+      `SELECT ap.agendamento_id, p.nome, ap.quantidade, ap.preco_unitario, ap.subtotal
+       FROM agendamento_produtos ap
+       JOIN produtos p ON p.id = ap.produto_id
+       WHERE ap.agendamento_id IN (?)`,
+      [agendamentoIds]
+    );
+
+    // Mapear produtos para seus agendamentos
+    const agendamentosComProdutos = agendamentos.map(agendamento => {
+      return {
+        ...agendamento,
+        produtos: produtos.filter(p => p.agendamento_id === agendamento.id)
+      };
+    });
+
     res.json({
       success: true,
-      agendamentos
+      agendamentos: agendamentosComProdutos
     });
 
   } catch (error) {
@@ -275,9 +310,31 @@ exports.getHistoricoAgendamentos = async (req, res) => {
       [usuarioId, parseInt(limit), parseInt(offset)]
     );
 
+    if (agendamentos.length === 0) {
+      return res.json({ success: true, agendamentos: [] });
+    }
+
+    // Buscar produtos para todos os agendamentos de uma vez
+    const agendamentoIds = agendamentos.map(a => a.id);
+    const [produtos] = await db.query(
+      `SELECT ap.agendamento_id, p.nome, ap.quantidade, ap.preco_unitario, ap.subtotal
+       FROM agendamento_produtos ap
+       JOIN produtos p ON p.id = ap.produto_id
+       WHERE ap.agendamento_id IN (?)`,
+      [agendamentoIds]
+    );
+
+    // Mapear produtos para seus agendamentos
+    const agendamentosComProdutos = agendamentos.map(agendamento => {
+      return {
+        ...agendamento,
+        produtos: produtos.filter(p => p.agendamento_id === agendamento.id)
+      };
+    });
+
     res.json({
       success: true,
-      agendamentos
+      agendamentos: agendamentosComProdutos
     });
 
   } catch (error) {
