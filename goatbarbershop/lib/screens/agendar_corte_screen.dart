@@ -27,14 +27,10 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
   int? _selectedPacote;
   bool _isLoadingHorarios = false;
   bool _isLoadingDias = false;
+  bool _isLoadingBarbeiros = false;
   Timer? _refreshTimer;
 
-  // Dados mockados - depois virão da API
-  final List<Map<String, dynamic>> _barbeiros = [
-    {'id': 1, 'nome': 'Haku Santos', 'tipo': 'Haku Santos'},
-    {'id': 2, 'nome': 'Luon Yog', 'tipo': 'Luon Yog'},
-    {'id': 3, 'nome': 'Oui Uiga', 'tipo': 'Oui Uiga'},
-  ];
+  List<Map<String, dynamic>> _barbeiros = [];
 
   List<DateTime> _diasDisponiveis = [];
   List<String> _horariosDisponiveis = [];
@@ -77,6 +73,7 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
   void initState() {
     super.initState();
     _selectedBarbeiro = widget.barbeiro.id;
+    _carregarBarbeiros();
     _carregarServicos();
     _carregarDiasDisponiveis();
     // Atualizar a cada 30 segundos
@@ -140,6 +137,40 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
       if (mounted) {
         setState(() {
           _isLoadingServicos = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _carregarBarbeiros() async {
+    setState(() {
+      _isLoadingBarbeiros = true;
+    });
+
+    try {
+      final response = await ApiService.getBarbeirosAtivos();
+      if (response['success'] && mounted) {
+        setState(() {
+          _barbeiros = (response['barbeiros'] as List)
+              .map((barbeiro) => {
+                    'id': barbeiro['id'],
+                    'nome': barbeiro['nome'],
+                    'tipo': barbeiro['nome'],
+                  })
+              .toList();
+        });
+      }
+    } catch (e) {
+      // Em caso de erro, usar lista vazia e exibir mensagem
+      if (mounted) {
+        setState(() {
+          _barbeiros = [];
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingBarbeiros = false;
         });
       }
     }
@@ -381,42 +412,52 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
 
               const SizedBox(height: 16),
 
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _barbeirosDisponiveis.map((barbeiro) {
-                  final isSelected = _selectedBarbeiro == barbeiro['id'];
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _selectedBarbeiro = barbeiro['id'];
-                        _selectedDate = null;
-                        _selectedTime = null;
-                        _horariosDisponiveis.clear();
-                      });
-                      _carregarDiasDisponiveis();
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? const Color(0xFFFFB84D)
-                            : const Color(0xFF1A1A1A),
-                        borderRadius: BorderRadius.circular(25),
-                        border: Border.all(
+              if (_isLoadingBarbeiros)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: CircularProgressIndicator(
+                      color: Color(0xFFFFB84D),
+                    ),
+                  ),
+                )
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _barbeirosDisponiveis.map((barbeiro) {
+                    final isSelected = _selectedBarbeiro == barbeiro['id'];
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedBarbeiro = barbeiro['id'];
+                          _selectedDate = null;
+                          _selectedTime = null;
+                          _horariosDisponiveis.clear();
+                        });
+                        _carregarDiasDisponiveis();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
                           color: isSelected
                               ? const Color(0xFFFFB84D)
-                              : const Color(0xFF333333),
-                          width: isSelected ? 2 : 1,
+                              : const Color(0xFF1A1A1A),
+                          borderRadius: BorderRadius.circular(25),
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFFFFB84D)
+                                : const Color(0xFF333333),
+                            width: isSelected ? 2 : 1,
+                          ),
                         ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
                             Icons.person,
                             size: 18,
                             color: isSelected ? Colors.black : Colors.white,
@@ -435,7 +476,7 @@ class _AgendarCorteScreenState extends State<AgendarCorteScreen> {
                     ),
                   );
                 }).toList(),
-              ),
+                ),
 
               const SizedBox(height: 32),
 

@@ -16,6 +16,9 @@ router.get('/verificar-disponibilidade', agendamentoController.verificarDisponib
 // Rota para buscar serviços ativos
 router.get('/servicos', agendamentoController.getServicosAtivos);
 
+// Rota para buscar barbeiros ativos
+router.get('/barbeiros', agendamentoController.getBarbeirosAtivos);
+
 // Endpoint de teste
 
 

@@ -751,6 +751,31 @@ exports.getServicosAtivos = async (req, res) => {
   }
 };
 
+// Obter barbeiros ativos
+exports.getBarbeirosAtivos = async (req, res) => {
+  try {
+    const [barbeiros] = await db.query(
+      `SELECT id, nome 
+       FROM usuarios 
+       WHERE tipo_usuario = 'barbeiro' AND ativo = TRUE 
+       ORDER BY nome`
+    );
+
+    res.json({
+      success: true,
+      barbeiros
+    });
+
+  } catch (error) {
+    console.error('Erro ao obter barbeiros ativos:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao obter barbeiros',
+      error: error.message
+    });
+  }
+};
+
 // Cancelar agendamento
 exports.cancelarAgendamento = async (req, res) => {
   const connection = await db.getConnection();
