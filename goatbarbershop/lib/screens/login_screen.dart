@@ -67,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 // Logo
                 Text(
-                  'GIAT',
+                  'GOAT',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.displayLarge,
                 ),

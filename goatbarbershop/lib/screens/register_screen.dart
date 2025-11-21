@@ -76,7 +76,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      'GIAT',
+                      'GOAT',
                       style: Theme.of(context).textTheme.displayLarge?.copyWith(
                         fontSize: 36,
                         letterSpacing: 6,

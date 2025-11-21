@@ -50,7 +50,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AdminProvider()),
       ],
       child: MaterialApp(
-        title: 'GIAT Barbershop',
+        title: 'GOAT Barbershop',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
         home: const AuthWrapper(),

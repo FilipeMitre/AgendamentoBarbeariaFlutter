@@ -33,7 +33,7 @@ app.use('/api/dashboard', dashboardRoutes);
 
 // Rota de teste
 app.get('/', (req, res) => {
-  res.send('API GIAT Barbershop está online!');
+  res.send('API GOAT Barbershop está online!');
 });
 
 // Tratamento de erros (opcional, mas recomendado)

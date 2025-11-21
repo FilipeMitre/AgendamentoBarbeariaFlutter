@@ -80,7 +80,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 child: Column(
                   children: [
                     Text(
-                      'GIAT',
+                      'GOAT',
                       style: TextStyle(
                         fontSize: 48,
                         fontWeight: FontWeight.w700,
