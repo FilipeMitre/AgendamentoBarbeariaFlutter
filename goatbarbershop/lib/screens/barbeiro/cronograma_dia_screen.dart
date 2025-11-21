@@ -18,7 +18,9 @@ class _CronogramaDiaScreenState extends State<CronogramaDiaScreen> {
   bool _isLoading = false;
 
   final List<DateTime> _diasDisponiveis = List.generate(
-    7,
+    // Gerar uma janela maior de dias para o barbeiro poder navegar
+    // por agendamentos em meses seguintes (ex.: próximo mês).
+    45,
     (index) => DateTime.now().add(Duration(days: index)),
   );
 
